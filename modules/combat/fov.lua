@@ -14,16 +14,23 @@ local Core = nil
 
 local function getCore()
     if Core then return Core end
+    local env = (getgenv and getgenv()) or _G
+    if env.DarlingCombatCore then
+        Core = env.DarlingCombatCore
+        return Core
+    end
     if _G.DarlingCombatCore then
         Core = _G.DarlingCombatCore
         return Core
     end
-    if _G.DarlingHub and _G.DarlingHub.Require then
+    local hub = env.DarlingHub or _G.DarlingHub
+    if hub and hub.Require then
         local ok, res = pcall(function()
-            return _G.DarlingHub:Require("modules/combat/aimbot_core.lua")
+            return hub:Require("modules/combat/aimbot_core.lua")
         end)
         if ok and res then
             Core = res
+            env.DarlingCombatCore = Core
             _G.DarlingCombatCore = Core
             return Core
         end

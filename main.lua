@@ -114,6 +114,7 @@ local DarlingHub = {
     },
 }
 SharedEnv.DarlingHub = DarlingHub
+_G.DarlingHub = DarlingHub
 
 local function readLocalModule(relPath)
     if not (exIsFile and readfile) then return nil end
@@ -221,6 +222,15 @@ function DarlingHub:UnloadAll()
         self.Overlay = nil
     end
 end
+
+-- Preload combat core
+task.spawn(function()
+    local ok, core = pcall(function() return DarlingHub:Require("modules/combat/aimbot_core.lua") end)
+    if ok and core then
+        SharedEnv.DarlingCombatCore = core
+        _G.DarlingCombatCore = core
+    end
+end)
 
 -- ========================================================================
 -- LOAD WINDUI WITH ESSENTIAL PC INPUT FIXES
