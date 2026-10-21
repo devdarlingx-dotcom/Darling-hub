@@ -1,10 +1,12 @@
 --[[
     Darling Hub - Tracers Module (Centered Origin)
-    Renders targeting tracers originating strictly from the middle of the screen.
+    Dual-layer rendering (ScreenGui rotated Frame + Drawing Line) with origin strictly at screen center.
 ]]--
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
 
 local Tracers = {}
 local Core = nil
@@ -15,13 +17,17 @@ local function getCore()
         Core = _G.DarlingCombatCore
         return Core
     end
-
-    local paths = {
-        "modules/combat/aimbot_core.lua",
-        "darling-hub/modules/combat/aimbot_core.lua",
-    }
-
-    for _, p in ipairs(paths) do
+    if _G.DarlingHub and _G.DarlingHub.Require then
+        local ok, res = pcall(function()
+            return _G.DarlingHub:Require("modules/combat/aimbot_core.lua")
+        end)
+        if ok and res then
+            Core = res
+            _G.DarlingCombatCore = Core
+            return Core
+        end
+    end
+    for _, p in ipairs({ "modules/combat/aimbot_core.lua", "darling-hub/modules/combat/aimbot_core.lua" }) do
         if isfile and isfile(p) then
             local ok, res = pcall(function() return loadstring(readfile(p))() end)
             if ok and res then
@@ -31,109 +37,192 @@ local function getCore()
             end
         end
     end
-
     return nil
 end
 
-local drawingLine = nil
+local isEnabled = false
 local renderConnection = nil
-local isDrawingSupported = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
 
-local function getLine()
+-- ScreenGui Element References
+local guiLine = nil
+
+-- Drawing API Reference
+local drawingLine = nil
+local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
+
+local function getOverlayGui()
+    if _G.DarlingHub and _G.DarlingHub.GetOverlay then
+        local ok, res = pcall(function() return _G.DarlingHub:GetOverlay() end)
+        if ok and res then return res end
+    end
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "DarlingHub_Tracers_Overlay"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 2147483000
+    if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
+    local parented = false
+    if gethui then parented = pcall(function() gui.Parent = gethui() end) end
+    if not parented then parented = pcall(function() gui.Parent = CoreGui end) end
+    if not parented then gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+    return gui
+end
+
+local function ensureGuiLine()
+    if guiLine and guiLine.Parent then return guiLine end
+    local overlay = getOverlayGui()
+    if not overlay then return nil end
+
+    local line = Instance.new("Frame")
+    line.Name = "TracerLine"
+    line.AnchorPoint = Vector2.new(0.5, 0.5)
+    line.BorderSizePixel = 0
+    line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    line.Visible = false
+    line.Parent = overlay
+
+    guiLine = line
+    return guiLine
+end
+
+local function ensureDrawingLine()
+    if not hasDrawing then return nil end
     if drawingLine then return drawingLine end
-    if isDrawingSupported then
-        local ok, l = pcall(function()
-            local line = Drawing.new("Line")
-            line.Thickness = 1.5
-            line.Transparency = 1
-            line.Color = Color3.fromRGB(255, 50, 50)
-            line.Visible = false
-            return line
-        end)
-        if ok and l then
-            drawingLine = l
-            return drawingLine
-        end
+    local ok, l = pcall(function()
+        local line = Drawing.new("Line")
+        line.Thickness = 1.5
+        line.Transparency = 1
+        line.Color = Color3.fromRGB(255, 50, 50)
+        line.Visible = false
+        return line
+    end)
+    if ok and l then
+        drawingLine = l
+        return drawingLine
     end
     return nil
 end
 
 local function onRender()
+    if not isEnabled then return end
     local core = getCore()
-    local line = getLine()
-    if not line or not core then return end
-
-    if not core.Tracers.Visible or not core.CurrentTargetPosition then
-        line.Visible = false
-        return
-    end
+    local settings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers)
+        or (core and core.Tracers)
+        or { Color = Color3.fromRGB(255, 50, 50), Thickness = 1.5 }
 
     local camera = Workspace.CurrentCamera
-    if not camera then
-        line.Visible = false
+    if not camera then return end
+
+    -- Determine target position (use active target from aimbot, or resolve closest standalone)
+    local targetPos = core and core.CurrentTargetPosition
+    if not targetPos and core and core.resolveAnyTarget then
+        local _, resolvedPos = core.resolveAnyTarget()
+        targetPos = resolvedPos
+    end
+
+    if not targetPos then
+        if guiLine then guiLine.Visible = false end
+        if drawingLine then drawingLine.Visible = false end
         return
     end
 
-    local targetPos, onScreen = camera:WorldToViewportPoint(core.CurrentTargetPosition)
+    local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
     if not onScreen then
-        line.Visible = false
+        if guiLine then guiLine.Visible = false end
+        if drawingLine then drawingLine.Visible = false end
         return
     end
 
-    -- Strictly origin in the center of the viewport (crosshair position)
-    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    -- Origin strictly at center of viewport
+    local fromPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    local toPos = Vector2.new(screenPos.X, screenPos.Y)
+    local color = settings.Color or Color3.fromRGB(255, 50, 50)
+    local thickness = settings.Thickness or 1.5
 
-    line.From = screenCenter
-    line.To = Vector2.new(targetPos.X, targetPos.Y)
-    line.Color = core.Tracers.Color
-    line.Thickness = core.Tracers.Thickness
-    line.Visible = true
+    -- 1. Update ScreenGui Rotated Line
+    local line = ensureGuiLine()
+    if line then
+        local delta = toPos - fromPos
+        local distance = delta.Magnitude
+        local angle = math.atan2(delta.Y, delta.X)
+
+        line.Size = UDim2.fromOffset(distance, thickness)
+        line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
+        line.Rotation = math.deg(angle)
+        line.BackgroundColor3 = color
+        line.Visible = true
+    end
+
+    -- 2. Update Drawing Line
+    local dLine = ensureDrawingLine()
+    if dLine then
+        dLine.From = fromPos
+        dLine.To = toPos
+        dLine.Color = color
+        dLine.Thickness = thickness
+        dLine.Visible = true
+    end
+end
+
+function Tracers.enable()
+    isEnabled = true
+    local core = getCore()
+    if core then core.Tracers.Visible = true end
+
+    ensureGuiLine()
+    ensureDrawingLine()
+
+    if not renderConnection then
+        renderConnection = RunService.RenderStepped:Connect(onRender)
+    end
+    return true
+end
+
+function Tracers.disable()
+    isEnabled = false
+    local core = getCore()
+    if core then core.Tracers.Visible = false end
+
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
+
+    if guiLine then
+        guiLine.Visible = false
+    end
+    if drawingLine then
+        drawingLine.Visible = false
+    end
 end
 
 function Tracers.setVisible(state)
-    local core = getCore()
-    if core then
-        core.Tracers.Visible = state
-    end
-
-    if state then
-        getLine()
-        if not renderConnection then
-            renderConnection = RunService.RenderStepped:Connect(onRender)
-        end
-    else
-        if renderConnection then
-            renderConnection:Disconnect()
-            renderConnection = nil
-        end
-        if drawingLine then
-            drawingLine.Visible = false
-        end
-    end
+    if state then Tracers.enable() else Tracers.disable() end
 end
 
 function Tracers.setColor(color)
     local core = getCore()
-    if core and typeof(color) == "Color3" then
-        core.Tracers.Color = color
-        if drawingLine then
-            drawingLine.Color = color
-        end
+    if core and typeof(color) == "Color3" then core.Tracers.Color = color end
+    if _G.DarlingHub and _G.DarlingHub.Settings and typeof(color) == "Color3" then
+        _G.DarlingHub.Settings.Tracers.Color = color
     end
 end
 
 function Tracers.setThickness(thickness)
+    local t = tonumber(thickness) or 1.5
     local core = getCore()
-    if core and type(thickness) == "number" then
-        core.Tracers.Thickness = thickness
-        if drawingLine then
-            drawingLine.Thickness = thickness
-        end
+    if core then core.Tracers.Thickness = t end
+    if _G.DarlingHub and _G.DarlingHub.Settings then
+        _G.DarlingHub.Settings.Tracers.Thickness = t
     end
 end
 
 function Tracers.destroy()
-    Tracers.setVisible(false)
+    Tracers.disable()
+    if guiLine then
+        pcall(function() guiLine:Destroy() end)
+        guiLine = nil
+    end
     if drawingLine then
         pcall(function() drawingLine:Remove() end)
         drawingLine = nil

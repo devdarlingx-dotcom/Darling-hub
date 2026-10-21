@@ -79,38 +79,65 @@ local darlingIcon = loadCustomMediaAsset(initialDarlingUrl, "darling_icon_d_bc0f
 -- ========================================================================
 -- MODULAR LOADER (LAZY LOADING)
 -- ========================================================================
+local SharedEnv = (getgenv and getgenv()) or _G
+local RepoBase = "https://raw.githubusercontent.com/devdarlingx-dotcom/Darling-hub/main/"
+
 local DarlingHub = {
     Modules = {},
-    BasePath = "modules/",
-    IsLocal = true,
+    Overlay = nil,
+    -- Shared settings: UI writes here, modules read here (no module load needed)
+    Settings = {
+        Aim = {
+            Mode = "360",            -- "360", "180", "FOV"
+            Priority = "Nearest",    -- "Nearest", "Low HP", "Looking At Me"
+            Hitbox = "HumanoidRootPart",
+            MaxRange = 1000,
+            Prediction = true,
+            PredictionAmount = 0.12,
+        },
+        FOV = {
+            Radius = 100,
+            Mode = "Center",         -- "Center", "Mouse"
+            Color = Color3.fromRGB(255, 60, 60),
+            Thickness = 1.5,
+        },
+        Tracers = {
+            Color = Color3.fromRGB(255, 50, 50),
+            Thickness = 1.5,
+        },
+        Blacklist = {
+            Melee = { Z = false, X = false, C = false },
+            Sword = { Z = false, X = false },
+            Fruit = { Z = false, X = false, C = false, V = false, F = false, TAP = false },
+            Gun   = { Z = false, X = false },
+        },
+    },
 }
+SharedEnv.DarlingHub = DarlingHub
+
+local function readLocalModule(relPath)
+    if not (exIsFile and readfile) then return nil end
+    for _, p in ipairs({ relPath, "darling-hub/" .. relPath }) do
+        local okF, exists = pcall(exIsFile, p)
+        if okF and exists then
+            local ok, content = pcall(readfile, p)
+            if ok and type(content) == "string" and #content > 0 then
+                return content
+            end
+        end
+    end
+    return nil
+end
 
 function DarlingHub:Require(relPath)
     if self.Modules[relPath] then
         return self.Modules[relPath]
     end
 
-    local code = nil
-    local candidatePaths = {
-        relPath,
-        "darling-hub/" .. relPath,
-    }
-
-    if self.IsLocal then
-        for _, p in ipairs(candidatePaths) do
-            if exIsFile and exIsFile(p) then
-                local ok, content = pcall(readfile, p)
-                if ok and type(content) == "string" and #content > 0 then
-                    code = content
-                    break
-                end
-            end
-        end
-    end
-
-    if not code and universalHttpGet then
-        local remoteUrl = "https://raw.githubusercontent.com/devdarlingx-dotcom/Darling-hub/main/" .. relPath
-        code = universalHttpGet(remoteUrl)
+    local code = readLocalModule(relPath)
+    if not code then
+        code = universalHttpGet(RepoBase .. relPath .. "?v=" .. tostring(os.time()))
+            or universalHttpGet(RepoBase .. relPath)
     end
 
     if not code then
@@ -125,13 +152,74 @@ function DarlingHub:Require(relPath)
     end
 
     local okExec, mod = pcall(fn)
-    if not okExec then
+    if not okExec or type(mod) ~= "table" then
         warn("[Darling Hub] Runtime error in module " .. tostring(relPath) .. ": " .. tostring(mod))
         return nil
     end
 
     self.Modules[relPath] = mod
     return mod
+end
+
+-- Fullscreen overlay used by FOV / Tracers (works on every executor, no Drawing API needed)
+function DarlingHub:GetOverlay()
+    if self.Overlay and self.Overlay.Parent then
+        return self.Overlay
+    end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = HttpService:GenerateGUID(false)
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.DisplayOrder = 2147483000
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    pcall(function() gui.ScreenInsets = Enum.ScreenInsets.None end)
+    if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
+
+    local parented = false
+    if gethui then
+        parented = pcall(function() gui.Parent = gethui() end)
+    end
+    if not parented then
+        parented = pcall(function() gui.Parent = CoreGui end)
+    end
+    if not parented then
+        gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    self.Overlay = gui
+    return gui
+end
+
+-- Enables/disables a module. Disabling a module that was never loaded does nothing,
+-- so nothing is downloaded or executed until the user actually turns it on.
+function DarlingHub:Toggle(relPath, state)
+    if not state and not self.Modules[relPath] then
+        return
+    end
+    local mod = self:Require(relPath)
+    if not mod then
+        return false
+    end
+    local ok, err = pcall(function()
+        if state then mod.enable() else mod.disable() end
+    end)
+    if not ok then
+        warn("[Darling Hub] " .. tostring(relPath) .. ": " .. tostring(err))
+    end
+    return ok
+end
+
+function DarlingHub:UnloadAll()
+    for _, mod in pairs(self.Modules) do
+        if type(mod) == "table" then
+            if mod.destroy then pcall(mod.destroy) elseif mod.disable then pcall(mod.disable) end
+        end
+    end
+    if self.Overlay then
+        pcall(function() self.Overlay:Destroy() end)
+        self.Overlay = nil
+    end
 end
 
 -- ========================================================================
@@ -970,199 +1058,150 @@ local AimbotTab = Window:Tab({
 })
 enhanceTabScrolling(AimbotTab)
 
--- --- MAIN SILENT AIM ---
-AimbotTab:Toggle({
-    Title = "Player Silent Aim",
-    Desc = "Redirects skills and shots towards valid enemy players",
-    Value = false,
-    Callback = function(state)
-        local mod = DarlingHub:Require("modules/combat/player_aimbot.lua")
-        if mod then
-            if state then mod.enable() else mod.disable() end
+local AimSettings = DarlingHub.Settings
+
+local function notifyModuleFail(name)
+    WindUI:Notify({
+        Title = "Darling Hub",
+        Content = "Failed to load " .. name .. ". Check your connection.",
+        Duration = 4,
+        Icon = "triangle-alert"
+    })
+end
+
+local function bindToggle(path, name)
+    return function(state)
+        if DarlingHub:Toggle(path, state) == false then
+            notifyModuleFail(name)
         end
     end
+end
+
+local ColorMap = {
+    Red = Color3.fromRGB(255, 50, 50),
+    Green = Color3.fromRGB(50, 255, 90),
+    Blue = Color3.fromRGB(50, 150, 255),
+    Yellow = Color3.fromRGB(255, 220, 50),
+    Purple = Color3.fromRGB(170, 90, 255),
+    White = Color3.fromRGB(255, 255, 255),
+}
+local ColorNames = { "Red", "Green", "Blue", "Yellow", "Purple", "White" }
+
+-- Silent Aim
+AimbotTab:Toggle({
+    Title = "Player Silent Aim",
+    Desc = "Redirects skills towards enemy players",
+    Value = false,
+    Callback = bindToggle("modules/combat/player_aimbot.lua", "Player Silent Aim")
 })
 
 AimbotTab:Toggle({
     Title = "NPC Silent Aim",
-    Desc = "Redirects skills and shots towards nearby enemies / mobs",
+    Desc = "Redirects skills towards mobs and bosses",
     Value = false,
-    Callback = function(state)
-        local mod = DarlingHub:Require("modules/combat/npc_aimbot.lua")
-        if mod then
-            if state then mod.enable() else mod.disable() end
-        end
-    end
-})
-
-AimbotTab:Dropdown({
-    Title = "Target Hitbox",
-    Values = { "Head", "Torso", "HumanoidRootPart" },
-    Default = "Head",
-    Callback = function(selected)
-        local mod = DarlingHub:Require("modules/combat/player_aimbot.lua")
-        if mod then mod.setHitbox(selected) end
-    end
+    Callback = bindToggle("modules/combat/npc_aimbot.lua", "NPC Silent Aim")
 })
 
 AimbotTab:Dropdown({
     Title = "Target Priority",
-    Values = { "Nearest", "Low HP", "Looking At Me", "Lock Player" },
-    Default = "Nearest",
-    Callback = function(selected)
-        local mod = DarlingHub:Require("modules/combat/player_aimbot.lua")
-        if mod then mod.setPriority(selected) end
+    Values = { "Nearest", "Low HP", "Looking At Me" },
+    Value = "Nearest",
+    Callback = function(v)
+        if type(v) == "string" then AimSettings.Aim.Priority = v end
     end
 })
 
 AimbotTab:Dropdown({
-    Title = "Aim Angle Mode",
+    Title = "Aim Mode",
+    Desc = "FOV = only targets inside the circle",
     Values = { "360", "180", "FOV" },
-    Default = "360",
-    Callback = function(selected)
-        local mod = DarlingHub:Require("modules/combat/player_aimbot.lua")
-        if mod then mod.setAimMode(selected) end
+    Value = "360",
+    Callback = function(v)
+        if type(v) == "string" then AimSettings.Aim.Mode = v end
     end
 })
 
 AimbotTab:Slider({
     Title = "Max Range",
-    Value = {
-        Min = 100,
-        Max = 3000,
-        Default = 1000,
-    },
+    Value = { Min = 100, Max = 3000, Default = 1000 },
     Step = 50,
-    Callback = function(val)
-        local mod = DarlingHub:Require("modules/combat/player_aimbot.lua")
-        if mod then mod.setMaxRange(val) end
+    Callback = function(v)
+        AimSettings.Aim.MaxRange = tonumber(v) or AimSettings.Aim.MaxRange
+    end
+})
+
+AimbotTab:Dropdown({
+    Title = "Skill Blacklist",
+    Desc = "Selected skills are not redirected",
+    Values = {
+        "Melee Z", "Melee X", "Melee C",
+        "Sword Z", "Sword X",
+        "Fruit Z", "Fruit X", "Fruit C", "Fruit V", "Fruit F", "Fruit TAP",
+        "Gun Z", "Gun X",
+    },
+    Value = {},
+    Multi = true,
+    AllowNone = true,
+    Callback = function(selection)
+        local mod = DarlingHub:Require("modules/combat/blacklist.lua")
+        if mod then mod.apply(selection) end
     end
 })
 
 AimbotTab:Divider()
 
--- --- FOV SYSTEM ---
+-- FOV
 AimbotTab:Toggle({
     Title = "Show FOV Circle",
-    Desc = "Renders dynamic FOV circle using Drawing API",
     Value = false,
-    Callback = function(state)
-        local mod = DarlingHub:Require("modules/combat/fov.lua")
-        if mod then mod.setVisible(state) end
-    end
-})
-
-AimbotTab:Dropdown({
-    Title = "FOV Mode",
-    Values = { "Center", "Mouse" },
-    Default = "Center",
-    Callback = function(selected)
-        local mod = DarlingHub:Require("modules/combat/fov.lua")
-        if mod then mod.setMode(selected) end
-    end
+    Callback = bindToggle("modules/combat/fov.lua", "FOV Circle")
 })
 
 AimbotTab:Slider({
     Title = "FOV Radius",
-    Value = {
-        Min = 20,
-        Max = 600,
-        Default = 100,
-    },
+    Value = { Min = 20, Max = 600, Default = 100 },
     Step = 5,
-    Callback = function(val)
-        local mod = DarlingHub:Require("modules/combat/fov.lua")
-        if mod then mod.setRadius(val) end
-    end
-})
-
-AimbotTab:Divider()
-
--- --- CENTERED TRACERS ---
-AimbotTab:Toggle({
-    Title = "Enable Tracers",
-    Desc = "Draws targeting snaplines strictly from the screen center",
-    Value = false,
-    Callback = function(state)
-        local mod = DarlingHub:Require("modules/combat/tracers.lua")
-        if mod then mod.setVisible(state) end
+    Callback = function(v)
+        AimSettings.FOV.Radius = tonumber(v) or AimSettings.FOV.Radius
     end
 })
 
 AimbotTab:Dropdown({
-    Title = "Tracer Color",
-    Values = { "Red", "Green", "Blue", "Yellow", "White" },
-    Default = "Red",
-    Callback = function(selected)
-        local colorMap = {
-            Red = Color3.fromRGB(255, 50, 50),
-            Green = Color3.fromRGB(50, 255, 50),
-            Blue = Color3.fromRGB(50, 150, 255),
-            Yellow = Color3.fromRGB(255, 220, 50),
-            White = Color3.fromRGB(255, 255, 255),
-        }
-        local mod = DarlingHub:Require("modules/combat/tracers.lua")
-        if mod and colorMap[selected] then
-            mod.setColor(colorMap[selected])
-        end
+    Title = "FOV Position",
+    Values = { "Center", "Mouse" },
+    Value = "Center",
+    Callback = function(v)
+        if type(v) == "string" then AimSettings.FOV.Mode = v end
+    end
+})
+
+AimbotTab:Dropdown({
+    Title = "FOV Color",
+    Values = ColorNames,
+    Value = "Red",
+    Callback = function(v)
+        if ColorMap[v] then AimSettings.FOV.Color = ColorMap[v] end
     end
 })
 
 AimbotTab:Divider()
 
--- --- SKILL BLACKLIST ---
-AimbotTab:Paragraph({
-    Title = "Skill Blacklist",
-    Desc = "Blacklisted skills will bypass aimbot redirection (preserves utility & movement moves).",
+-- Tracers
+AimbotTab:Toggle({
+    Title = "Show Tracers",
+    Desc = "Line from screen center to the current target",
+    Value = false,
+    Callback = bindToggle("modules/combat/tracers.lua", "Tracers")
 })
 
--- Melee
-for _, k in ipairs({ "Z", "X", "C" }) do
-    AimbotTab:Toggle({
-        Title = "Blacklist Melee " .. k,
-        Value = false,
-        Callback = function(state)
-            local mod = DarlingHub:Require("modules/combat/blacklist.lua")
-            if mod then mod.set("Melee", k, state) end
-        end
-    })
-end
-
--- Sword
-for _, k in ipairs({ "Z", "X" }) do
-    AimbotTab:Toggle({
-        Title = "Blacklist Sword " .. k,
-        Value = false,
-        Callback = function(state)
-            local mod = DarlingHub:Require("modules/combat/blacklist.lua")
-            if mod then mod.set("Sword", k, state) end
-        end
-    })
-end
-
--- Fruit
-for _, k in ipairs({ "Z", "X", "C", "V", "F", "TAP" }) do
-    AimbotTab:Toggle({
-        Title = "Blacklist Fruit " .. k,
-        Value = false,
-        Callback = function(state)
-            local mod = DarlingHub:Require("modules/combat/blacklist.lua")
-            if mod then mod.set("Fruit", k, state) end
-        end
-    })
-end
-
--- Gun
-for _, k in ipairs({ "Z", "X" }) do
-    AimbotTab:Toggle({
-        Title = "Blacklist Gun " .. k,
-        Value = false,
-        Callback = function(state)
-            local mod = DarlingHub:Require("modules/combat/blacklist.lua")
-            if mod then mod.set("Gun", k, state) end
-        end
-    })
-end
+AimbotTab:Dropdown({
+    Title = "Tracer Color",
+    Values = ColorNames,
+    Value = "Red",
+    Callback = function(v)
+        if ColorMap[v] then AimSettings.Tracers.Color = ColorMap[v] end
+    end
+})
 
 -- ========================================================================
 -- 3. PLAYERS TAB
@@ -1894,6 +1933,7 @@ SettingsTab:Button({
     Callback = function()
         pcall(function()
             allowFloatingWidget = false
+            DarlingHub:UnloadAll()
             clearActiveMedia()
             if Window.EditOpenButton then
                 Window:EditOpenButton({ Enabled = false })

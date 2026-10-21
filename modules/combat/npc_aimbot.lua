@@ -12,6 +12,16 @@ local function getCore()
         Core = _G.DarlingCombatCore
         return Core
     end
+    if _G.DarlingHub and _G.DarlingHub.Require then
+        local ok, res = pcall(function()
+            return _G.DarlingHub:Require("modules/combat/aimbot_core.lua")
+        end)
+        if ok and res then
+            Core = res
+            _G.DarlingCombatCore = Core
+            return Core
+        end
+    end
 
     local paths = {
         "modules/combat/aimbot_core.lua",

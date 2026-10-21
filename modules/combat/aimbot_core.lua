@@ -444,18 +444,9 @@ function Core.installMetatableHook()
     if Core.IsHooked then return end
     Core.IsHooked = true
 
-    local rawMt = getrawmetatable(game)
-    if not rawMt then return end
-
-    local oldNamecall = rawMt.__namecall
-    setreadonly(rawMt, false)
-
-    rawMt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        local args = { ... }
-
+    local function processHook(self, method, args, oldCallable)
         if args[1] == "TAP" then
-            return oldNamecall(self, ...)
+            return oldCallable(self, unpack(args))
         end
 
         local skillKey = getSkillKeyFromArgs(args)
@@ -463,7 +454,6 @@ function Core.installMetatableHook()
             Core.setCurrentSkillKey(skillKey)
         end
 
-        -- Check blacklist
         local activeKey = skillKey or Core.CurrentSkillKey
         local isBlacklisted = false
         if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
@@ -494,10 +484,49 @@ function Core.installMetatableHook()
             end
         end
 
-        return oldNamecall(self, unpack(args))
-    end)
+        return oldCallable(self, unpack(args))
+    end
 
-    setreadonly(rawMt, true)
+    local hooked = false
+    if hookmetamethod then
+        local ok, oldNamecall = pcall(function()
+            local old
+            old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local args = { ... }
+                return processHook(self, method, args, function(s, ...) return old(s, ...) end)
+            end))
+            return old
+        end)
+        if ok and oldNamecall then
+            hooked = true
+        end
+    end
+
+    if not hooked and getrawmetatable then
+        local rawMt = getrawmetatable(game)
+        if rawMt then
+            local oldNamecall = rawMt.__namecall
+            setreadonly(rawMt, false)
+            rawMt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                local args = { ... }
+                return processHook(self, method, args, function(s, ...) return oldNamecall(s, ...) end)
+            end)
+            setreadonly(rawMt, true)
+            hooked = true
+        end
+    end
+end
+
+function Core.resolveAnyTarget()
+    Camera = Workspace.CurrentCamera or Camera
+    local char = LocalPlayer.Character
+    local lpHRP = char and char:FindFirstChild("HumanoidRootPart")
+    if not lpHRP then return nil, nil end
+    local part, pos, tChar = resolvePlayerTarget(lpHRP)
+    if part and pos then return part, pos, tChar end
+    return resolveNPCTarget(lpHRP)
 end
 
 -- ============================================================================
