@@ -1,16 +1,12 @@
 --[[
     Darling Hub - Player List & Management Module
-    Displays each server player with:
-    - Full-body avatar skin model preview (head to toe)
-    - Live health bar and numerical HP display
-    - Individual Aimbot Blacklist toggle
-    - Spectate camera toggle
+    WindUI-native aesthetic: translucent glass cards, full-body skin previews,
+    real-time health monitor, individual aimbot blacklist, and spectate mode.
 ]]--
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -52,7 +48,7 @@ function PlayerList.spectate(targetPlayer)
         PlayerList.SpectateConn = nil
     end
 
-    PlayerList.SpectateConn = targetPlayer.CharacterAdded:Connect(function(newChar)
+    PlayerList.SpectateConn = targetPlayer.CharacterAdded:Connect(function()
         task.wait(0.2)
         if PlayerList.CurrentSpectating == targetPlayer then
             setSubject()
@@ -70,12 +66,10 @@ function PlayerList.stopSpectate()
     end
 
     Camera = Workspace.CurrentCamera or Camera
-    local myChar = LocalPlayer.Character
+    local myChar = LocalPlayer and LocalPlayer.Character
     local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
     if myHum then
         Camera.CameraSubject = myHum
-    elseif myChar then
-        Camera.CameraSubject = myChar:FindFirstChild("HumanoidRootPart") or myChar
     end
 
     PlayerList.updateAllButtons()
@@ -92,76 +86,115 @@ end
 -- ============================================================================
 -- BLACKLIST LOGIC
 -- ============================================================================
-function PlayerList.isBlacklisted(player)
-    if not player then return false end
-    local uid = player.UserId
-    local name = player.Name
-    return (_G.DarlingBlacklistedPlayers[uid] == true) or (_G.DarlingBlacklistedPlayers[name] == true)
+function PlayerList.isBlacklisted(targetPlayer)
+    if not targetPlayer then return false end
+    return _G.DarlingBlacklistedPlayers[targetPlayer.UserId] == true
+        or _G.DarlingBlacklistedPlayers[targetPlayer.Name] == true
 end
 
-function PlayerList.toggleBlacklist(player)
-    if not player then return end
-    local uid = player.UserId
-    local name = player.Name
-    local current = PlayerList.isBlacklisted(player)
-    local newState = not current
+function PlayerList.toggleBlacklist(targetPlayer)
+    if not targetPlayer then return end
+    local uid = targetPlayer.UserId
+    local name = targetPlayer.Name
 
-    _G.DarlingBlacklistedPlayers[uid] = newState and true or nil
-    _G.DarlingBlacklistedPlayers[name] = newState and true or nil
+    if PlayerList.isBlacklisted(targetPlayer) then
+        _G.DarlingBlacklistedPlayers[uid] = nil
+        _G.DarlingBlacklistedPlayers[name] = nil
+    else
+        _G.DarlingBlacklistedPlayers[uid] = true
+        _G.DarlingBlacklistedPlayers[name] = true
+    end
 
-    PlayerList.updateAllButtons()
-    return newState
+    PlayerList.updateCardButtons(uid)
 end
 
 -- ============================================================================
--- UI CARD CREATION
+-- CARD RENDERING (WINDUI-NATIVE TRANSLUCENT GLASS)
 -- ============================================================================
-function PlayerList.createPlayerCard(player, parentContainer)
-    if not player or not parentContainer then return nil end
+function PlayerList.createPlayerCard(player, parentFrame)
+    if not player or player == LocalPlayer then return end
+    local uid = player.UserId
 
+    -- Remove existing card if present
+    if PlayerList.Cards[uid] and PlayerList.Cards[uid].Card then
+        pcall(function() PlayerList.Cards[uid].Card:Destroy() end)
+    end
+
+    -- Main Card (100% relative width, never overflows)
     local card = Instance.new("Frame")
-    card.Name = "PlayerCard_" .. player.Name
-    card.Size = UDim2.new(1, 0, 0, 106)
-    card.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+    card.Name = "PlayerCard_" .. tostring(uid)
+    card.Size = UDim2.new(1, 0, 0, 0)
+    card.AutomaticSize = Enum.AutomaticSize.Y
+    card.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    card.BackgroundTransparency = 0.45
     card.BorderSizePixel = 0
+    card.Parent = parentFrame
 
     local cardCorner = Instance.new("UICorner")
     cardCorner.CornerRadius = UDim.new(0, 8)
     cardCorner.Parent = card
 
     local cardStroke = Instance.new("UIStroke")
-    cardStroke.Color = Color3.fromRGB(36, 36, 46)
+    cardStroke.Color = Color3.fromRGB(255, 255, 255)
+    cardStroke.Transparency = 0.93
     cardStroke.Thickness = 1
     cardStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     cardStroke.Parent = card
 
-    -- Avatar Box (Full Skin Body Preview)
+    local cardPadding = Instance.new("UIPadding")
+    cardPadding.PaddingTop = UDim.new(0, 8)
+    cardPadding.PaddingBottom = UDim.new(0, 8)
+    cardPadding.PaddingLeft = UDim.new(0, 10)
+    cardPadding.PaddingRight = UDim.new(0, 10)
+    cardPadding.Parent = card
+
+    local cardLayout = Instance.new("UIListLayout")
+    cardLayout.FillDirection = Enum.FillDirection.Vertical
+    cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    cardLayout.Padding = UDim.new(0, 8)
+    cardLayout.Parent = card
+
+    -- ==================== ROW 1: AVATAR & INFO ====================
+    local row1 = Instance.new("Frame")
+    row1.Name = "InfoRow"
+    row1.Size = UDim2.new(1, 0, 0, 68)
+    row1.BackgroundTransparency = 1
+    row1.BorderSizePixel = 0
+    row1.Parent = card
+
+    -- Avatar Box (Full body head-to-toe preview)
     local avatarBox = Instance.new("Frame")
     avatarBox.Name = "AvatarBox"
-    avatarBox.Size = UDim2.new(0, 72, 0, 92)
-    avatarBox.Position = UDim2.new(0, 7, 0, 7)
+    avatarBox.Size = UDim2.new(0, 52, 0, 68)
+    avatarBox.Position = UDim2.new(0, 0, 0, 0)
     avatarBox.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+    avatarBox.BackgroundTransparency = 0.35
     avatarBox.BorderSizePixel = 0
-    avatarBox.Parent = card
+    avatarBox.Parent = row1
 
-    local avatarCorner = Instance.new("UICorner")
-    avatarCorner.CornerRadius = UDim.new(0, 6)
-    avatarCorner.Parent = avatarBox
+    local avCorner = Instance.new("UICorner")
+    avCorner.CornerRadius = UDim.new(0, 6)
+    avCorner.Parent = avatarBox
+
+    local avStroke = Instance.new("UIStroke")
+    avStroke.Color = Color3.fromRGB(255, 255, 255)
+    avStroke.Transparency = 0.94
+    avStroke.Thickness = 1
+    avStroke.Parent = avatarBox
 
     local avatarImg = Instance.new("ImageLabel")
     avatarImg.Name = "AvatarSkin"
     avatarImg.Size = UDim2.new(1, 0, 1, 0)
     avatarImg.BackgroundTransparency = 1
     avatarImg.ScaleType = Enum.ScaleType.Fit
-    -- High-definition full-body skin thumbnail
-    avatarImg.Image = "rbxthumb://type=Avatar&id=" .. tostring(player.UserId) .. "&w=420&h=420"
+    avatarImg.Image = "rbxthumb://type=Avatar&id=" .. tostring(uid) .. "&w=420&h=420"
     avatarImg.Parent = avatarBox
 
-    -- Asynchronous thumbnail fallback
+    -- Async thumbnail fallback
     task.spawn(function()
         pcall(function()
             local thumb, isReady = Players:GetUserThumbnailAsync(
-                player.UserId,
+                uid,
                 Enum.ThumbnailType.AvatarThumbnail,
                 Enum.ThumbnailSize.Size420x420
             )
@@ -171,147 +204,156 @@ function PlayerList.createPlayerCard(player, parentContainer)
         end)
     end)
 
-    -- Info Area
-    local infoFrame = Instance.new("Frame")
-    infoFrame.Name = "Info"
-    infoFrame.BackgroundTransparency = 1
-    infoFrame.Position = UDim2.new(0, 86, 0, 8)
-    infoFrame.Size = UDim2.new(1, -280, 0, 90)
-    infoFrame.Parent = card
+    -- Player Info Column
+    local infoCol = Instance.new("Frame")
+    infoCol.Name = "InfoCol"
+    infoCol.Size = UDim2.new(1, -60, 1, 0)
+    infoCol.Position = UDim2.new(0, 60, 0, 0)
+    infoCol.BackgroundTransparency = 1
+    infoCol.BorderSizePixel = 0
+    infoCol.Parent = row1
 
-    -- Display Name
-    local displayNameLabel = Instance.new("TextLabel")
-    displayNameLabel.Name = "DisplayName"
-    displayNameLabel.Size = UDim2.new(1, 0, 0, 18)
-    displayNameLabel.Position = UDim2.new(0, 0, 0, 0)
-    displayNameLabel.BackgroundTransparency = 1
-    displayNameLabel.Text = player.DisplayName
-    displayNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    displayNameLabel.Font = Enum.Font.GothamBold
-    displayNameLabel.TextSize = 13
-    displayNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    displayNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    displayNameLabel.Parent = infoFrame
+    local infoLayout = Instance.new("UIListLayout")
+    infoLayout.FillDirection = Enum.FillDirection.Vertical
+    infoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    infoLayout.Padding = UDim.new(0, 2)
+    infoLayout.Parent = infoCol
 
-    -- Username
-    local usernameLabel = Instance.new("TextLabel")
-    usernameLabel.Name = "Username"
-    usernameLabel.Size = UDim2.new(1, 0, 0, 14)
-    usernameLabel.Position = UDim2.new(0, 0, 0, 18)
-    usernameLabel.BackgroundTransparency = 1
-    usernameLabel.Text = "@" .. player.Name
-    usernameLabel.TextColor3 = Color3.fromRGB(140, 140, 155)
-    usernameLabel.Font = Enum.Font.Gotham
-    usernameLabel.TextSize = 11
-    usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    usernameLabel.Parent = infoFrame
+    -- DisplayName
+    local dispLabel = Instance.new("TextLabel")
+    dispLabel.Name = "DisplayName"
+    dispLabel.Size = UDim2.new(1, 0, 0, 16)
+    dispLabel.BackgroundTransparency = 1
+    dispLabel.Text = player.DisplayName
+    dispLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    dispLabel.Font = Enum.Font.GothamBold
+    dispLabel.TextSize = 13
+    dispLabel.TextXAlignment = Enum.TextXAlignment.Left
+    dispLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    dispLabel.Parent = infoCol
+
+    -- Username & Team
+    local teamStr = (player.Team and player.Team.Name) or "Neutral"
+    local userLabel = Instance.new("TextLabel")
+    userLabel.Name = "UsernameTeam"
+    userLabel.Size = UDim2.new(1, 0, 0, 14)
+    userLabel.BackgroundTransparency = 1
+    userLabel.Text = "@" .. player.Name .. "  •  " .. teamStr
+    userLabel.TextColor3 = Color3.fromRGB(150, 150, 165)
+    userLabel.Font = Enum.Font.Gotham
+    userLabel.TextSize = 11
+    userLabel.TextXAlignment = Enum.TextXAlignment.Left
+    userLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    userLabel.Parent = infoCol
 
     -- Health Bar Background
     local hpBg = Instance.new("Frame")
-    hpBg.Name = "HealthBarBg"
-    hpBg.Size = UDim2.new(1, 0, 0, 8)
-    hpBg.Position = UDim2.new(0, 0, 0, 42)
-    hpBg.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    hpBg.Name = "HealthBg"
+    hpBg.Size = UDim2.new(1, 0, 0, 6)
+    hpBg.BackgroundColor3 = Color3.fromRGB(36, 36, 48)
     hpBg.BorderSizePixel = 0
-    hpBg.Parent = infoFrame
+    hpBg.Parent = infoCol
 
     local hpBgCorner = Instance.new("UICorner")
-    hpBgCorner.CornerRadius = UDim.new(0, 4)
+    hpBgCorner.CornerRadius = UDim.new(1, 0)
     hpBgCorner.Parent = hpBg
 
-    -- Health Bar Fill
     local hpFill = Instance.new("Frame")
-    hpFill.Name = "HealthBarFill"
+    hpFill.Name = "HealthFill"
     hpFill.Size = UDim2.new(1, 0, 1, 0)
-    hpFill.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+    hpFill.BackgroundColor3 = Color3.fromRGB(60, 220, 100)
     hpFill.BorderSizePixel = 0
     hpFill.Parent = hpBg
 
     local hpFillCorner = Instance.new("UICorner")
-    hpFillCorner.CornerRadius = UDim.new(0, 4)
+    hpFillCorner.CornerRadius = UDim.new(1, 0)
     hpFillCorner.Parent = hpFill
 
     -- Health Text
     local hpLabel = Instance.new("TextLabel")
     hpLabel.Name = "HealthText"
-    hpLabel.Size = UDim2.new(1, 0, 0, 16)
-    hpLabel.Position = UDim2.new(0, 0, 0, 54)
+    hpLabel.Size = UDim2.new(1, 0, 0, 14)
     hpLabel.BackgroundTransparency = 1
-    hpLabel.Text = "HP: ..."
-    hpLabel.TextColor3 = Color3.fromRGB(200, 200, 215)
+    hpLabel.Text = "100 / 100 HP (100%)"
+    hpLabel.TextColor3 = Color3.fromRGB(180, 180, 195)
     hpLabel.Font = Enum.Font.GothamMedium
-    hpLabel.TextSize = 11
+    hpLabel.TextSize = 10
     hpLabel.TextXAlignment = Enum.TextXAlignment.Left
-    hpLabel.Parent = infoFrame
+    hpLabel.Parent = infoCol
 
-    -- Team Badge
-    local teamLabel = Instance.new("TextLabel")
-    teamLabel.Name = "TeamText"
-    teamLabel.Size = UDim2.new(1, 0, 0, 14)
-    teamLabel.Position = UDim2.new(0, 0, 0, 72)
-    teamLabel.BackgroundTransparency = 1
-    teamLabel.Text = player.Team and player.Team.Name or "Neutral"
-    teamLabel.TextColor3 = (player.Team and player.Team.Name == "Marines") and Color3.fromRGB(70, 160, 255) or Color3.fromRGB(255, 120, 60)
-    teamLabel.Font = Enum.Font.Gotham
-    teamLabel.TextSize = 10
-    teamLabel.TextXAlignment = Enum.TextXAlignment.Left
-    teamLabel.Parent = infoFrame
+    -- ==================== ROW 2: ACTION BUTTONS ====================
+    local btnRow = Instance.new("Frame")
+    btnRow.Name = "ButtonRow"
+    btnRow.Size = UDim2.new(1, 0, 0, 28)
+    btnRow.BackgroundTransparency = 1
+    btnRow.BorderSizePixel = 0
+    btnRow.Parent = card
 
-    -- Controls Container (Right Side)
-    local btnContainer = Instance.new("Frame")
-    btnContainer.Name = "Controls"
-    btnContainer.BackgroundTransparency = 1
-    btnContainer.AnchorPoint = Vector2.new(1, 0.5)
-    btnContainer.Position = UDim2.new(1, -8, 0.5, 0)
-    btnContainer.Size = UDim2.new(0, 180, 0, 90)
-    btnContainer.Parent = card
+    local btnRowLayout = Instance.new("UIListLayout")
+    btnRowLayout.FillDirection = Enum.FillDirection.Horizontal
+    btnRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    btnRowLayout.Padding = UDim.new(0, 6)
+    btnRowLayout.Parent = btnRow
 
-    -- Spectate Button
-    local spectateBtn = Instance.new("TextButton")
-    spectateBtn.Name = "SpectateButton"
-    spectateBtn.Size = UDim2.new(0, 85, 0, 36)
-    spectateBtn.Position = UDim2.new(0, 0, 0, 27)
-    spectateBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-    spectateBtn.BorderSizePixel = 0
-    spectateBtn.Text = "Spectate"
-    spectateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    spectateBtn.Font = Enum.Font.GothamBold
-    spectateBtn.TextSize = 11
-    spectateBtn.AutoButtonColor = true
-    spectateBtn.Parent = btnContainer
-
-    local specCorner = Instance.new("UICorner")
-    specCorner.CornerRadius = UDim.new(0, 6)
-    specCorner.Parent = spectateBtn
-
-    spectateBtn.MouseButton1Click:Connect(function()
-        PlayerList.toggleSpectate(player)
-    end)
-
-    -- Blacklist Button
-    local blacklistBtn = Instance.new("TextButton")
-    blacklistBtn.Name = "BlacklistButton"
-    blacklistBtn.Size = UDim2.new(0, 90, 0, 36)
-    blacklistBtn.Position = UDim2.new(0, 90, 0, 27)
-    blacklistBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
-    blacklistBtn.BorderSizePixel = 0
-    blacklistBtn.Text = "Blacklist"
-    blacklistBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    blacklistBtn.Font = Enum.Font.GothamBold
-    blacklistBtn.TextSize = 11
-    blacklistBtn.AutoButtonColor = true
-    blacklistBtn.Parent = btnContainer
+    -- Blacklist Button (Ghost WindUI style)
+    local blBtn = Instance.new("TextButton")
+    blBtn.Name = "BlacklistBtn"
+    blBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    blBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    blBtn.BackgroundTransparency = 0.94
+    blBtn.BorderSizePixel = 0
+    blBtn.Text = "Blacklist"
+    blBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
+    blBtn.Font = Enum.Font.GothamMedium
+    blBtn.TextSize = 11
+    blBtn.AutoButtonColor = true
+    blBtn.Parent = btnRow
 
     local blCorner = Instance.new("UICorner")
     blCorner.CornerRadius = UDim.new(0, 6)
-    blCorner.Parent = blacklistBtn
+    blCorner.Parent = blBtn
 
-    blacklistBtn.MouseButton1Click:Connect(function()
+    local blStroke = Instance.new("UIStroke")
+    blStroke.Color = Color3.fromRGB(255, 255, 255)
+    blStroke.Transparency = 0.90
+    blStroke.Thickness = 1
+    blStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    blStroke.Parent = blBtn
+
+    blBtn.MouseButton1Click:Connect(function()
         PlayerList.toggleBlacklist(player)
     end)
 
-    -- Health Update Function
+    -- Spectate Button (Ghost WindUI style)
+    local specBtn = Instance.new("TextButton")
+    specBtn.Name = "SpectateBtn"
+    specBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    specBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    specBtn.BackgroundTransparency = 0.94
+    specBtn.BorderSizePixel = 0
+    specBtn.Text = "Spectate"
+    specBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
+    specBtn.Font = Enum.Font.GothamMedium
+    specBtn.TextSize = 11
+    specBtn.AutoButtonColor = true
+    specBtn.Parent = btnRow
+
+    local specCorner = Instance.new("UICorner")
+    specCorner.CornerRadius = UDim.new(0, 6)
+    specCorner.Parent = specBtn
+
+    local specStroke = Instance.new("UIStroke")
+    specStroke.Color = Color3.fromRGB(255, 255, 255)
+    specStroke.Transparency = 0.90
+    specStroke.Thickness = 1
+    specStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    specStroke.Parent = specBtn
+
+    specBtn.MouseButton1Click:Connect(function()
+        PlayerList.toggleSpectate(player)
+    end)
+
+    -- Live Health Update Function
     local function updateHealth()
         pcall(function()
             local char = player.Character
@@ -323,28 +365,29 @@ function PlayerList.createPlayerCard(player, parentContainer)
 
                 hpFill.Size = UDim2.new(ratio, 0, 1, 0)
                 if ratio > 0.5 then
-                    hpFill.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+                    hpFill.BackgroundColor3 = Color3.fromRGB(60, 220, 100)
                 elseif ratio > 0.25 then
-                    hpFill.BackgroundColor3 = Color3.fromRGB(255, 190, 40)
+                    hpFill.BackgroundColor3 = Color3.fromRGB(245, 185, 45)
                 else
-                    hpFill.BackgroundColor3 = Color3.fromRGB(230, 50, 50)
+                    hpFill.BackgroundColor3 = Color3.fromRGB(235, 55, 65)
                 end
 
                 hpLabel.Text = string.format("%d / %d HP (%d%%)", math.floor(hp), math.floor(maxHp), math.floor(ratio * 100))
+                hpLabel.TextColor3 = Color3.fromRGB(180, 180, 195)
             else
                 hpFill.Size = UDim2.new(0, 0, 1, 0)
                 hpLabel.Text = "Dead / Respawning"
-                hpLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
+                hpLabel.TextColor3 = Color3.fromRGB(140, 140, 150)
             end
         end)
     end
 
-    -- Initial Health update
     updateHealth()
 
-    -- Live Health listener
+    -- Hook CharacterAdded & HealthChanged
     local function hookChar(c)
-        local hum = c:WaitForChild("Humanoid", 5)
+        if not c then return end
+        local hum = c:WaitForChild("Humanoid", 4)
         if hum then
             updateHealth()
             hum.HealthChanged:Connect(updateHealth)
@@ -354,42 +397,56 @@ function PlayerList.createPlayerCard(player, parentContainer)
     if player.Character then hookChar(player.Character) end
     player.CharacterAdded:Connect(hookChar)
 
-    card.Parent = parentContainer
-
-    PlayerList.Cards[player.UserId] = {
+    -- Save reference
+    PlayerList.Cards[uid] = {
         Card = card,
         Player = player,
-        SpectateBtn = spectateBtn,
-        BlacklistBtn = blacklistBtn,
+        BlacklistBtn = blBtn,
+        BlacklistStroke = blStroke,
+        SpectateBtn = specBtn,
+        SpectateStroke = specStroke,
         UpdateHealth = updateHealth,
     }
 
-    PlayerList.updateCardButtons(player.UserId)
-    return card
+    PlayerList.updateCardButtons(uid)
 end
 
-function PlayerList.updateCardButtons(userId)
-    local item = PlayerList.Cards[userId]
+function PlayerList.updateCardButtons(uid)
+    local item = PlayerList.Cards[uid]
     if not item then return end
     local pl = item.Player
 
     -- Spectate button state
-    local isSpec = (PlayerList.CurrentSpectating == pl)
-    if isSpec then
-        item.SpectateBtn.BackgroundColor3 = Color3.fromRGB(45, 130, 255)
+    if PlayerList.CurrentSpectating == pl then
+        item.SpectateBtn.BackgroundColor3 = Color3.fromRGB(50, 140, 245)
+        item.SpectateBtn.BackgroundTransparency = 0.2
+        item.SpectateStroke.Color = Color3.fromRGB(90, 170, 255)
+        item.SpectateStroke.Transparency = 0.4
+        item.SpectateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         item.SpectateBtn.Text = "Viewing"
     else
-        item.SpectateBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+        item.SpectateBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        item.SpectateBtn.BackgroundTransparency = 0.94
+        item.SpectateStroke.Color = Color3.fromRGB(255, 255, 255)
+        item.SpectateStroke.Transparency = 0.90
+        item.SpectateBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
         item.SpectateBtn.Text = "Spectate"
     end
 
     -- Blacklist button state
-    local isBl = PlayerList.isBlacklisted(pl)
-    if isBl then
+    if PlayerList.isBlacklisted(pl) then
         item.BlacklistBtn.BackgroundColor3 = Color3.fromRGB(220, 45, 75)
+        item.BlacklistBtn.BackgroundTransparency = 0.2
+        item.BlacklistStroke.Color = Color3.fromRGB(255, 80, 110)
+        item.BlacklistStroke.Transparency = 0.4
+        item.BlacklistBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         item.BlacklistBtn.Text = "Blacklisted"
     else
-        item.BlacklistBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+        item.BlacklistBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        item.BlacklistBtn.BackgroundTransparency = 0.94
+        item.BlacklistStroke.Color = Color3.fromRGB(255, 255, 255)
+        item.BlacklistStroke.Transparency = 0.90
+        item.BlacklistBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
         item.BlacklistBtn.Text = "Blacklist"
     end
 end
@@ -408,12 +465,14 @@ function PlayerList.mount(container)
 
     local targetFrame = container
     if typeof(container) == "table" then
-        targetFrame = container.ContainerFrame or (container.UIElements and container.UIElements.ContainerFrame) or (container.UIElements and container.UIElements.Main)
+        targetFrame = (container.UIElements and container.UIElements.ContainerFrame)
+            or container.ContainerFrame
+            or (container.UIElements and container.UIElements.Main)
     end
     if not targetFrame or typeof(targetFrame) ~= "Instance" then return end
     PlayerList.Container = targetFrame
 
-    -- Card List Container
+    -- Container Frame for all player cards
     local listFrame = Instance.new("Frame")
     listFrame.Name = "DarlingPlayerList"
     listFrame.Size = UDim2.new(1, 0, 0, 0)
@@ -430,7 +489,6 @@ function PlayerList.mount(container)
     PlayerList.ListFrame = listFrame
 
     local function populate()
-        -- Clear existing
         for _, child in ipairs(listFrame:GetChildren()) do
             if child:IsA("Frame") and child.Name:find("PlayerCard_") then
                 child:Destroy()

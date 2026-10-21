@@ -88,7 +88,7 @@ local DarlingHub = {
     -- Shared settings: UI writes here, modules read here (no module load needed)
     Settings = {
         Aim = {
-            Mode = "FOV",            -- "FOV", "360", "180"
+            Mode = "360",            -- "360", "FOV", "180"
             Priority = "Nearest",    -- "Nearest", "Low HP", "Looking At Me"
             Hitbox = "HumanoidRootPart",
             MaxRange = 1000,
@@ -1123,9 +1123,9 @@ AimbotTab:Dropdown({
 
 AimbotTab:Dropdown({
     Title = "Aim Mode",
-    Desc = "FOV = only targets inside the circle",
-    Values = { "FOV", "360", "180" },
-    Value = "FOV",
+    Desc = "360 = all directions, FOV = circle, 180 = forward only",
+    Values = { "360", "FOV", "180" },
+    Value = "360",
     Callback = function(v)
         if type(v) == "string" then
             AimSettings.Aim.Mode = v
@@ -1293,7 +1293,9 @@ task.spawn(function()
     pcall(function()
         local PlayerList = DarlingHub:Require("modules/players/player_list.lua")
         if PlayerList and PlayerList.mount then
-            local cf = PlayersTab.ContainerFrame or (PlayersTab.UIElements and PlayersTab.UIElements.ContainerFrame) or (PlayersTab.UIElements and PlayersTab.UIElements.Main)
+            local cf = (PlayersTab.UIElements and PlayersTab.UIElements.ContainerFrame)
+                or PlayersTab.ContainerFrame
+                or (PlayersTab.UIElements and PlayersTab.UIElements.Main)
             if cf then
                 PlayerList.mount(cf)
             else

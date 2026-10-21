@@ -1,7 +1,9 @@
 --[[
     Darling Hub - Combat Core (Blox Fruits)
-    High-compatibility targeting engine with Mouse override, Namecall interception,
-    and multi-folder NPC/Player resolution based on RJR & Nameless.
+    Combines Nameless Blacklist System with RJR Silent Aim Engine.
+    Default Aim Mode: 360 degrees.
+    Crash-free async rotation, hitscan sword moves (Buddy Sword X),
+    and dual-layer metatable hooks.
 ]]--
 
 local Players = game:GetService("Players")
@@ -16,13 +18,13 @@ local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer and LocalPlayer:GetMouse()
 
 local Core = {
-    -- Toggles
+    -- Master Toggles
     PlayerAimEnabled = false,
     NPCAimEnabled = false,
     TeamCheck = true,
 
-    -- Settings
-    AimMode = "FOV", -- "FOV", "360", "180"
+    -- Settings (360 degrees default)
+    AimMode = "360", -- "360", "FOV", "180"
     TargetPriority = "Nearest", -- "Nearest", "Low HP", "Looking At Me"
     TargetPart = "Head", -- "Head", "HumanoidRootPart"
     MaxRange = 1000,
@@ -45,7 +47,7 @@ local Core = {
         Thickness = 1.5,
     },
 
-    -- Resolved Targets
+    -- Resolved Targets (RJR Engine)
     CurrentTargetPart = nil,
     CurrentTargetRawPosition = nil,
     CurrentTargetPosition = nil,
@@ -58,7 +60,7 @@ local Core = {
     CurrentSkillKey = nil,
     LastSkillTime = 0,
 
-    -- Skill Blacklist
+    -- Skill Blacklist (Nameless Engine)
     BlacklistedKeys = {
         Melee = { Z = false, X = false, C = false },
         Sword = { Z = false, X = false },
@@ -66,10 +68,9 @@ local Core = {
         Gun   = { Z = false, X = false },
     },
 
-    -- Internal
+    -- Internal Hooks & Lifecycle
     IsHooked = false,
     RenderConnection = nil,
-    HeartbeatConnection = nil,
     CharConnections = {},
     LastVelocity = nil,
     LastDirection = nil,
@@ -78,10 +79,10 @@ local Core = {
 local SKILL_KEYS = { "Z", "X", "C", "V", "F", "TAP" }
 
 -- ============================================================================
--- TOOL CATEGORIZATION
+-- TOOL CATEGORIZATION (NAMELESS)
 -- ============================================================================
 function Core.getToolCategory(tool)
-    if not tool then return "Melee" end
+    if not tool or not tool:IsA("Tool") then return "Melee" end
     pcall(function()
         local tip = string.lower(tool.ToolTip or "")
         if string.find(tip, "melee") then return "Melee" end
@@ -101,20 +102,39 @@ function Core.getToolCategory(tool)
         if string.find(name, m) then return "Melee" end
     end
 
-    if string.find(name, "fruit") or string.find(name, "-") then
+    if tool.ToolTip == "Blox Fruit" or string.find(name, "fruit") or string.find(name, "-") then
         return "Fruit"
     end
 
     return "Sword"
 end
 
+-- ============================================================================
+-- BLACKLIST CHECKS (NAMELESS & DARLING HUB)
+-- ============================================================================
 function Core.isKeyBlacklisted(category, key)
     if not key then return false end
-    if category and Core.BlacklistedKeys[category] and Core.BlacklistedKeys[category][key] == true then
-        return true
+    category = category or Core.CurrentToolCategory or "Melee"
+    if Core.BlacklistedKeys[category] and Core.BlacklistedKeys[category][key] ~= nil then
+        if Core.BlacklistedKeys[category][key] == true then return true end
     end
     if (key == "V" or key == "F" or key == "TAP") and Core.BlacklistedKeys.Fruit and Core.BlacklistedKeys.Fruit[key] == true then
         return true
+    end
+    -- Fallback to global blacklist table if configured via dropdown
+    if _G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Blacklist then
+        local b = _G.DarlingHub.Settings.Blacklist[category]
+        if b and b[key] == true then return true end
+    end
+    return false
+end
+
+function Core.isPlayerBlacklisted(player)
+    if not player then return false end
+    if _G.DarlingBlacklistedPlayers then
+        if _G.DarlingBlacklistedPlayers[player.UserId] == true or _G.DarlingBlacklistedPlayers[player.Name] == true then
+            return true
+        end
     end
     return false
 end
@@ -172,9 +192,7 @@ end
 
 local function isEnemy(targetPlayer)
     if not targetPlayer or targetPlayer == LocalPlayer then return false end
-    if _G.DarlingBlacklistedPlayers and (_G.DarlingBlacklistedPlayers[targetPlayer.UserId] or _G.DarlingBlacklistedPlayers[targetPlayer.Name]) then
-        return false
-    end
+    if Core.isPlayerBlacklisted(targetPlayer) then return false end
     if not Core.TeamCheck then return true end
     if isAlly(targetPlayer) then return false end
 
@@ -215,7 +233,7 @@ function Core.predictPosition(targetPart)
     if not isAlive(char) then return targetPart.Position end
 
     -- Hitscan weapons (swords / Buddy Sword) do not lead with velocity prediction
-    local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+    local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (string.find(Core.CurrentTool.Name, "Sword") or string.find(Core.CurrentTool.Name, "Buddy")))
     if isSword then
         return targetPart.Position
     end
@@ -229,7 +247,7 @@ function Core.predictPosition(targetPart)
     local vel = hrp.Velocity
     local speed = vel.Magnitude
 
-    if speed < 3 then
+    if speed < 4 then
         Core.LastVelocity = nil
         Core.LastDirection = nil
         return targetPart.Position
@@ -264,7 +282,7 @@ function Core.predictPosition(targetPart)
 end
 
 -- ============================================================================
--- TARGET SELECTION (PLAYERS & NPCS)
+-- TARGET SELECTION (RJR ENGINE WITH 360 DEFAULT)
 -- ============================================================================
 local function resolvePlayerTarget(lpHRP)
     if not lpHRP then return nil, nil, nil end
@@ -272,71 +290,55 @@ local function resolvePlayerTarget(lpHRP)
 
     local hubSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Aim) or Core
     local maxRange = hubSettings.MaxRange or Core.MaxRange or 1000
-    local aimMode = hubSettings.Mode or Core.AimMode or "FOV"
+    local aimMode = hubSettings.Mode or Core.AimMode or "360"
     local fovCenter = Core.getFOVCenter()
     local fovRadius = Core.getFOVRadius()
 
-    local candidates = {}
+    local closestPart = nil
+    local shortestDist = math.huge
+    local targetChar = nil
+    local myPos = lpHRP.Position
 
     for _, pl in ipairs(Players:GetPlayers()) do
-        if pl ~= LocalPlayer and isEnemy(pl) and pl.Character and isAlive(pl.Character) then
+        if pl ~= LocalPlayer and isEnemy(pl) and not Core.isPlayerBlacklisted(pl) and pl.Character and isAlive(pl.Character) then
             local part = getEntityPart(pl.Character)
             if part then
-                local worldDist = (part.Position - lpHRP.Position).Magnitude
+                local worldDist = (part.Position - myPos).Magnitude
                 if worldDist <= maxRange then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                    local screenDist = onScreen and (Vector2.new(screenPos.X, screenPos.Y) - fovCenter).Magnitude or math.huge
-
                     if aimMode == "FOV" then
-                        if onScreen and screenDist <= fovRadius then
-                            table.insert(candidates, {
-                                Part = part,
-                                Character = pl.Character,
-                                WorldDist = worldDist,
-                                ScreenDist = screenDist,
-                                Health = pl.Character:FindFirstChildOfClass("Humanoid") and pl.Character:FindFirstChildOfClass("Humanoid").Health or 100,
-                            })
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - fovCenter).Magnitude
+                            if screenDist <= fovRadius and screenDist < shortestDist then
+                                shortestDist = screenDist
+                                closestPart = part
+                                targetChar = pl.Character
+                            end
                         end
                     elseif aimMode == "180" then
-                        local dir = (part.Position - lpHRP.Position).Unit
-                        if lpHRP.CFrame.LookVector:Dot(dir) >= 0 then
-                            table.insert(candidates, {
-                                Part = part,
-                                Character = pl.Character,
-                                WorldDist = worldDist,
-                                ScreenDist = screenDist,
-                                Health = pl.Character:FindFirstChildOfClass("Humanoid") and pl.Character:FindFirstChildOfClass("Humanoid").Health or 100,
-                            })
+                        local dir = (part.Position - myPos).Unit
+                        if lpHRP.CFrame.LookVector:Dot(dir) >= 0 and worldDist < shortestDist then
+                            shortestDist = worldDist
+                            closestPart = part
+                            targetChar = pl.Character
                         end
-                    else -- 360 mode
-                        table.insert(candidates, {
-                            Part = part,
-                            Character = pl.Character,
-                            WorldDist = worldDist,
-                            ScreenDist = screenDist,
-                            Health = pl.Character:FindFirstChildOfClass("Humanoid") and pl.Character:FindFirstChildOfClass("Humanoid").Health or 100,
-                        })
+                    else -- "360" (DEFAULT)
+                        if worldDist < shortestDist then
+                            shortestDist = worldDist
+                            closestPart = part
+                            targetChar = pl.Character
+                        end
                     end
                 end
             end
         end
     end
 
-    if #candidates == 0 then return nil, nil, nil end
-
-    if aimMode == "FOV" then
-        table.sort(candidates, function(a, b) return a.ScreenDist < b.ScreenDist end)
-    else
-        local priority = hubSettings.Priority or Core.TargetPriority or "Nearest"
-        if priority == "Low HP" then
-            table.sort(candidates, function(a, b) return a.Health < b.Health end)
-        else
-            table.sort(candidates, function(a, b) return a.WorldDist < b.WorldDist end)
-        end
+    if closestPart then
+        local predPos = Core.predictPosition(closestPart)
+        return closestPart, predPos, targetChar
     end
-
-    local chosen = candidates[1]
-    return chosen.Part, Core.predictPosition(chosen.Part), chosen.Character
+    return nil, nil, nil
 end
 
 local function resolveNPCTarget(lpHRP)
@@ -345,11 +347,14 @@ local function resolveNPCTarget(lpHRP)
 
     local hubSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Aim) or Core
     local maxRange = hubSettings.MaxRange or Core.MaxRange or 1000
-    local aimMode = hubSettings.Mode or Core.AimMode or "FOV"
+    local aimMode = hubSettings.Mode or Core.AimMode or "360"
     local fovCenter = Core.getFOVCenter()
     local fovRadius = Core.getFOVRadius()
 
-    local candidates = {}
+    local closestPart = nil
+    local shortestDist = math.huge
+    local targetChar = nil
+    local myPos = lpHRP.Position
 
     local function isAttackableEnemy(entity)
         if not entity or not entity:IsA("Model") then return false end
@@ -369,37 +374,31 @@ local function resolveNPCTarget(lpHRP)
         if isAttackableEnemy(entity) then
             local part = getEntityPart(entity)
             if part then
-                local worldDist = (part.Position - lpHRP.Position).Magnitude
+                local worldDist = (part.Position - myPos).Magnitude
                 if worldDist <= maxRange then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                    local screenDist = onScreen and (Vector2.new(screenPos.X, screenPos.Y) - fovCenter).Magnitude or math.huge
-
                     if aimMode == "FOV" then
-                        if onScreen and screenDist <= fovRadius then
-                            table.insert(candidates, {
-                                Part = part,
-                                Character = entity,
-                                WorldDist = worldDist,
-                                ScreenDist = screenDist,
-                            })
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - fovCenter).Magnitude
+                            if screenDist <= fovRadius and screenDist < shortestDist then
+                                shortestDist = screenDist
+                                closestPart = part
+                                targetChar = entity
+                            end
                         end
                     elseif aimMode == "180" then
-                        local dir = (part.Position - lpHRP.Position).Unit
-                        if lpHRP.CFrame.LookVector:Dot(dir) >= 0 then
-                            table.insert(candidates, {
-                                Part = part,
-                                Character = entity,
-                                WorldDist = worldDist,
-                                ScreenDist = screenDist,
-                            })
+                        local dir = (part.Position - myPos).Unit
+                        if lpHRP.CFrame.LookVector:Dot(dir) >= 0 and worldDist < shortestDist then
+                            shortestDist = worldDist
+                            closestPart = part
+                            targetChar = entity
                         end
-                    else -- 360 mode
-                        table.insert(candidates, {
-                            Part = part,
-                            Character = entity,
-                            WorldDist = worldDist,
-                            ScreenDist = screenDist,
-                        })
+                    else -- "360" (DEFAULT)
+                        if worldDist < shortestDist then
+                            shortestDist = worldDist
+                            closestPart = part
+                            targetChar = entity
+                        end
                     end
                 end
             end
@@ -410,33 +409,19 @@ local function resolveNPCTarget(lpHRP)
         Workspace:FindFirstChild("Enemies"),
         Workspace:FindFirstChild("Characters"),
     }
-
-    local foundFolder = false
     for _, f in ipairs(folders) do
         if f then
-            foundFolder = true
             for _, child in ipairs(f:GetChildren()) do
                 checkEntity(child)
             end
         end
     end
 
-    if not foundFolder and Workspace:FindFirstChild("Enemies") then
-        for _, child in ipairs(Workspace.Enemies:GetChildren()) do
-            checkEntity(child)
-        end
+    if closestPart then
+        local predPos = Core.predictPosition(closestPart)
+        return closestPart, predPos, targetChar
     end
-
-    if #candidates == 0 then return nil, nil, nil end
-
-    if aimMode == "FOV" then
-        table.sort(candidates, function(a, b) return a.ScreenDist < b.ScreenDist end)
-    else
-        table.sort(candidates, function(a, b) return a.WorldDist < b.WorldDist end)
-    end
-
-    local chosen = candidates[1]
-    return chosen.Part, Core.predictPosition(chosen.Part), chosen.Character
+    return nil, nil, nil
 end
 
 function Core.resolveAnyTarget()
@@ -452,34 +437,34 @@ function Core.resolveAnyTarget()
 end
 
 -- ============================================================================
--- ROTATION TOWARDS TARGET (FOR FORWARD SKILLS)
+-- ROTATION TOWARDS TARGET (SAFE ASYNC - NO CRASH)
 -- ============================================================================
 function Core.faceTarget(targetPos)
     if not targetPos then return end
-    local char = LocalPlayer and LocalPlayer.Character
-    local hrp = char and getHRP(char)
-    if not hrp then return end
+    pcall(function()
+        local char = LocalPlayer and LocalPlayer.Character
+        local hrp = char and getHRP(char)
+        if not hrp then return end
 
-    local currentPos = hrp.Position
-    local look = (Vector3.new(targetPos.X, currentPos.Y, targetPos.Z) - currentPos).Unit
-    if look.Magnitude < 0.001 then return end
+        local currentPos = hrp.Position
+        local look = (Vector3.new(targetPos.X, currentPos.Y, targetPos.Z) - currentPos).Unit
+        if look.Magnitude < 0.001 then return end
 
-    hrp.CFrame = CFrame.lookAt(currentPos, currentPos + look, Vector3.new(0, 1, 0))
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if hum then hum.AutoRotate = true end
+        hrp.CFrame = CFrame.lookAt(currentPos, currentPos + look, Vector3.new(0, 1, 0))
+    end)
 end
 
 -- ============================================================================
--- SKILL TRACKING
+-- SKILL TRACKING (NAMELESS STYLE)
 -- ============================================================================
 function Core.setCurrentSkillKey(key)
     Core.CurrentSkillKey = key
     Core.LastSkillTime = os.clock()
 
-    if Core.PlayerAimEnabled or Core.NPCAimEnabled then
-        local targetPos = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
-        if targetPos then
-            task.spawn(function() Core.faceTarget(targetPos) end)
+    if (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart then
+        local targetPart = Core.CurrentTargetPart
+        if targetPart and not Core.isKeyBlacklisted(Core.CurrentToolCategory, key) then
+            task.spawn(function() Core.faceTarget(targetPart.Position) end)
         end
     end
 
@@ -502,7 +487,7 @@ local function getSkillKeyFromArgs(args)
 end
 
 -- ============================================================================
--- METATABLE HOOKS (MOUSE OVERRIDE + REMOTES)
+-- METATABLE HOOKS (RJR AIMBOT + NAMELESS INVOKESERVER REDIRECTION)
 -- ============================================================================
 function Core.installHooks()
     if Core.IsHooked then return end
@@ -519,7 +504,7 @@ function Core.installHooks()
                     if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
                         return oldIndex(self, key)
                     end
-                    local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                    local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (string.find(Core.CurrentTool.Name, "Sword") or string.find(Core.CurrentTool.Name, "Buddy")))
                     local tp = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                     if tp then
                         local cp = Camera.CFrame.Position
@@ -551,7 +536,7 @@ function Core.installHooks()
                         if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
                             return oldIndex(t, k)
                         end
-                        local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                        local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (string.find(Core.CurrentTool.Name, "Sword") or string.find(Core.CurrentTool.Name, "Buddy")))
                         local tp = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                         if tp then
                             local cp = Camera.CFrame.Position
@@ -592,7 +577,7 @@ function Core.installHooks()
                         if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
                             return realStore[key] or rawget(self, key)
                         end
-                        local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                        local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (string.find(Core.CurrentTool.Name, "Sword") or string.find(Core.CurrentTool.Name, "Buddy")))
                         local tp = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                         if tp then
                             if key == "Hit" then return CFrame.new(tp) end
@@ -640,21 +625,22 @@ function Core.installHooks()
             end
 
             if not isBlacklisted and (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart then
-                local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (string.find(Core.CurrentTool.Name, "Sword") or string.find(Core.CurrentTool.Name, "Buddy")))
                 local targetPos = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                 if targetPos then
-                    Core.faceTarget(targetPos)
-
                     if method == "FireServer" or method == "InvokeServer" then
-                        for i, v in ipairs(args) do
-                            if typeof(v) == "Vector3" then
-                                args[i] = targetPos
+                        local sName = tostring(self)
+                        if sName == "RemoteEvent" or sName == "CommE" or sName == "RemoteFunction" or sName == "CommF_" then
+                            for i, v in ipairs(args) do
+                                if typeof(v) == "Vector3" then
+                                    args[i] = targetPos
+                                end
                             end
-                        end
 
-                        -- Nameless & RJR Buddy Sword X / Sword InvokeServer redirection
-                        if method == "InvokeServer" and (type(args[1]) == "string" and table.find(SKILL_KEYS, args[1])) then
-                            args[2] = targetPos
+                            -- Nameless & RJR Buddy Sword X / Sword InvokeServer redirection
+                            if method == "InvokeServer" and (type(args[1]) == "string" and table.find(SKILL_KEYS, args[1])) then
+                                args[2] = targetPos
+                            end
                         end
                     end
                 end
@@ -705,17 +691,6 @@ function Core.startLoop()
     if Core.RenderConnection then return end
     Core.installHooks()
     Core.RenderConnection = RunService.RenderStepped:Connect(updateTargetCycle)
-
-    if not Core.HeartbeatConnection then
-        Core.HeartbeatConnection = RunService.Heartbeat:Connect(function()
-            if (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart then
-                local targetPos = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
-                if targetPos and Core.CurrentSkillKey and not Core.isKeyBlacklisted(Core.CurrentToolCategory, Core.CurrentSkillKey) then
-                    Core.faceTarget(targetPos)
-                end
-            end
-        end)
-    end
 end
 
 function Core.stopLoop()
@@ -723,10 +698,6 @@ function Core.stopLoop()
     if Core.RenderConnection then
         Core.RenderConnection:Disconnect()
         Core.RenderConnection = nil
-    end
-    if Core.HeartbeatConnection then
-        Core.HeartbeatConnection:Disconnect()
-        Core.HeartbeatConnection = nil
     end
     Core.CurrentTargetPart = nil
     Core.CurrentTargetRawPosition = nil
