@@ -120,15 +120,13 @@ local function onRender()
     local camera = Workspace.CurrentCamera
     if not camera then return end
 
-    -- Raw target position points directly to enemy part
+    -- Strictly follow active aimbot target:
+    -- If Player Aim is enabled and no player is nearby, do NOT snap to NPCs!
     local targetPos = nil
-    if core and core.CurrentTargetRawPosition then
-        targetPos = core.CurrentTargetRawPosition
-    elseif core and core.CurrentTargetPart then
-        targetPos = core.CurrentTargetPart.Position
-    elseif core and core.resolveAnyTarget then
-        local part, _, _ = core.resolveAnyTarget()
-        if part then targetPos = part.Position end
+    if core and (core.PlayerAimEnabled or core.NPCAimEnabled) then
+        if core.CurrentTargetPart then
+            targetPos = core.CurrentTargetRawPosition or core.CurrentTargetPart.Position
+        end
     end
 
     if not targetPos then

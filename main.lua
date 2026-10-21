@@ -239,7 +239,7 @@ local winduiUrl = "https://github.com/Footagesus/WindUI/releases/latest/download
 local winduiRaw = universalHttpGet(winduiUrl) or game:HttpGet(winduiUrl)
 
 if type(winduiRaw) == "string" then
-    -- Fix 1: Slider disconnect on any mouse/touch release
+    -- Fix 1: Slider disconnect on any mouse/touch release (never stuck to cursor)
     winduiRaw = winduiRaw:gsub("%)and aB==f", ")")
 
     -- Fix 2: Window drag release unconditionality (never gets stuck to cursor)
@@ -248,8 +248,16 @@ if type(winduiRaw) == "string" then
     -- Fix 3: Slider Value table fallback (prevents arithmetic crash on nil Min/Max)
     winduiRaw = winduiRaw:gsub(",\nLockedTitle=ak%.LockedTitle,\nValue=ak%.Value or{},", ",\nLockedTitle=ak.LockedTitle,\nValue=(typeof(ak.Value)==\"table\" and ak.Value) or {Min=ak.Min or 0, Max=ak.Max or 100, Default=ak.Default or ak.Min or 0},")
 
-    -- Fix 4: Slider Container active hitbox for reliable PC clicks
-    winduiRaw = winduiRaw:gsub('al%.UIElements%.SliderContainer=af%("Frame",{\nSize=UDim2%.new%(al%.Title==nil and 1 or 0,al%.Title==nil and 0 or al%.Width,0,0%),\nAutomaticSize="Y",', 'al.UIElements.SliderContainer=af("Frame",{\nSize=UDim2.new(al.Title==nil and 1 or 0,al.Title==nil and 0 or al.Width,0,32),\nActive=true,\nAutomaticSize="Y",')
+    -- Fix 4: Slider Container hitbox (32px, active, invisible catch layer with BackgroundTransparency=0.999)
+    winduiRaw = winduiRaw:gsub('al%.UIElements%.SliderContainer=af%("Frame",{\nSize=UDim2%.new%(al%.Title==nil and 1 or 0,al%.Title==nil and 0 or al%.Width,0,0%),\nAutomaticSize="Y",\nPosition=UDim2%.new%(1,al%.IsTextbox and%(ak%.Window%.NewElements and%-16 or 0%)or 0,0%.5,0%),\nAnchorPoint=Vector2%.new%(1,0%.5%),\nBackgroundTransparency=1,', 'al.UIElements.SliderContainer=af("Frame",{\nSize=UDim2.new(al.Title==nil and 1 or 0,al.Title==nil and 0 or al.Width,0,32),\nActive=true,\nAutomaticSize="Y",\nPosition=UDim2.new(1,al.IsTextbox and(ak.Window.NewElements and-16 or 0)or 0,0.5,0),\nAnchorPoint=Vector2.new(1,0.5),\nBackgroundTransparency=0.999,')
+
+    -- Fix 5: Touch / Mobile Drag Tracking (continuous finger tracking on TouchMoved/InputChanged)
+    winduiRaw = winduiRaw:gsub("am=%(aB%.UserInputType==Enum%.UserInputType%.Touch%)", "am=(aB.UserInputType==Enum.UserInputType.Touch) local aTouchPos=aB.Position.X local aTouchConn if am then aTouchConn=ac.InputChanged:Connect(function(ti) if ti.UserInputType==Enum.UserInputType.Touch then aTouchPos=ti.Position.X end end) end")
+    winduiRaw = winduiRaw:gsub("local f=am and aB%.Position%.X or ac:GetMouseLocation%(%)%.X", "local f=am and aTouchPos or ac:GetMouseLocation().X")
+    winduiRaw = winduiRaw:gsub("an:Disconnect%(%)\nao:Disconnect%(%)", "an:Disconnect()\nao:Disconnect()\nif aTouchConn then aTouchConn:Disconnect() end")
+
+    -- Fix 6: Slider lockout recovery (recovers leaked ai flag and clears CurrentInput lock)
+    winduiRaw = winduiRaw:gsub("if al%.Locked or ai then\nreturn\nend\nif\naA%.UserInputType==Enum%.UserInputType%.MouseButton1\nor aA%.UserInputType==Enum%.UserInputType%.Touch\nthen\nif ak%.WindUI%.CurrentInput and ak%.WindUI%.CurrentInput~=az then\nreturn\nend", "if al.Locked then return end\nif ai and not (ac:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)) then ai=false end\nif ai then return end\nif\naA.UserInputType==Enum.UserInputType.MouseButton1\nor aA.UserInputType==Enum.UserInputType.Touch\nthen\nak.WindUI.CurrentInput=az")
 end
 
 local WindUI = loadstring(winduiRaw)()
@@ -1137,10 +1145,20 @@ AimbotTab:Dropdown({
 
 AimbotTab:Slider({
     Title = "Max Range",
+    Width = 200,
     Value = { Min = 100, Max = 3000, Default = 1000 },
     Step = 50,
     Callback = function(v)
-        AimSettings.Aim.MaxRange = tonumber(v) or AimSettings.Aim.MaxRange
+        local val = tonumber(v) or 1000
+        AimSettings.Aim.MaxRange = val
+        local core = (_G.DarlingCombatCore) or (getgenv and getgenv().DarlingCombatCore)
+        if core then
+            core.MaxRange = val
+        end
+        local npcAim = DarlingHub:Require("modules/combat/npc_aimbot.lua")
+        if npcAim and npcAim.setMaxRange then npcAim.setMaxRange(val) end
+        local playerAim = DarlingHub:Require("modules/combat/player_aimbot.lua")
+        if playerAim and playerAim.setMaxRange then playerAim.setMaxRange(val) end
     end
 })
 
@@ -1173,10 +1191,20 @@ AimbotTab:Toggle({
 
 AimbotTab:Slider({
     Title = "FOV Radius",
+    Width = 200,
     Value = { Min = 20, Max = 600, Default = 100 },
     Step = 5,
     Callback = function(v)
-        AimSettings.FOV.Radius = tonumber(v) or AimSettings.FOV.Radius
+        local val = tonumber(v) or 100
+        AimSettings.FOV.Radius = val
+        local core = (_G.DarlingCombatCore) or (getgenv and getgenv().DarlingCombatCore)
+        if core and core.FOV then
+            core.FOV.Radius = val
+        end
+        local fovMod = DarlingHub:Require("modules/combat/fov.lua")
+        if fovMod and fovMod.setRadius then
+            fovMod.setRadius(val)
+        end
     end
 })
 
@@ -1226,66 +1254,9 @@ local PlayersTab = Window:Tab({
 })
 enhanceTabScrolling(PlayersTab)
 
-PlayersTab:Toggle({
-    Title = "Custom WalkSpeed",
-    Desc = "Increases local character movement speed",
-    Value = false,
-    Callback = function(state)
-        -- WalkSpeed toggle logic
-    end
-})
-
-PlayersTab:Slider({
-    Title = "WalkSpeed Value",
-    Value = {
-        Min = 16,
-        Max = 200,
-        Default = 16,
-    },
-    Step = 2,
-    Callback = function(val)
-        -- WalkSpeed value adjustment
-    end
-})
-
-PlayersTab:Slider({
-    Title = "JumpPower Value",
-    Value = {
-        Min = 50,
-        Max = 300,
-        Default = 50,
-    },
-    Step = 5,
-    Callback = function(val)
-        -- JumpPower value adjustment
-    end
-})
-
-PlayersTab:Divider()
-
-PlayersTab:Toggle({
-    Title = "Infinite Jump",
-    Desc = "Allows jumping mid-air without ground contact",
-    Value = false,
-    Callback = function(state)
-        -- Infinite jump logic
-    end
-})
-
-PlayersTab:Toggle({
-    Title = "NoClip",
-    Desc = "Disables collisions with walls and solid objects",
-    Value = false,
-    Callback = function(state)
-        -- NoClip logic
-    end
-})
-
-PlayersTab:Divider()
-
 PlayersTab:Paragraph({
     Title = "Server Players",
-    Desc = "View player skins, monitor health, toggle aimbot blacklist, or spectate",
+    Desc = "View player skins, monitor live health, blacklist from aimbot, or spectate",
 })
 
 task.spawn(function()
@@ -1325,6 +1296,7 @@ PvpTab:Toggle({
 
 PvpTab:Slider({
     Title = "Combat Range",
+    Width = 200,
     Value = {
         Min = 5,
         Max = 40,
@@ -1482,6 +1454,7 @@ MusicTab:Dropdown({
 
 MusicTab:Slider({
     Title = "Playback Volume",
+    Width = 200,
     Value = {
         Min = 0,
         Max = 100,
@@ -1827,6 +1800,7 @@ PersonalizationTab:Divider()
 PersonalizationTab:Slider({
     Title = "Background Dimming",
     Desc = "Adjusts dark overlay opacity over background media",
+    Width = 200,
     Value = {
         Min = 0,
         Max = 90,
@@ -1887,6 +1861,7 @@ PersonalizationTab:Divider()
 
 PersonalizationTab:Slider({
     Title = "UI Scale",
+    Width = 200,
     Value = {
         Min = 70,
         Max = 130,

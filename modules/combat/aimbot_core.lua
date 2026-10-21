@@ -430,10 +430,19 @@ function Core.resolveAnyTarget()
     local lpHRP = char and getHRP(char)
     if not lpHRP then return nil, nil, nil end
 
-    local pPart, pPos, pChar = resolvePlayerTarget(lpHRP)
-    if pPart and pPos then return pPart, pPos, pChar end
+    if Core.PlayerAimEnabled then
+        local pPart, pPos, pChar = resolvePlayerTarget(lpHRP)
+        if pPart and pPos then return pPart, pPos, pChar end
+        if not Core.NPCAimEnabled then
+            return nil, nil, nil
+        end
+    end
 
-    return resolveNPCTarget(lpHRP)
+    if Core.NPCAimEnabled then
+        return resolveNPCTarget(lpHRP)
+    end
+
+    return nil, nil, nil
 end
 
 -- ============================================================================

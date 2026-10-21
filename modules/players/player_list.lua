@@ -1,7 +1,7 @@
 --[[
     Darling Hub - Player List & Management Module
     WindUI-native aesthetic: translucent glass cards, full-body skin previews,
-    real-time health monitor, individual aimbot blacklist, and spectate mode.
+    reworked luxury health indicator, individual aimbot blacklist, and spectate mode.
 ]]--
 
 local Players = game:GetService("Players")
@@ -109,7 +109,7 @@ function PlayerList.toggleBlacklist(targetPlayer)
 end
 
 -- ============================================================================
--- CARD RENDERING (WINDUI-NATIVE TRANSLUCENT GLASS)
+-- CARD RENDERING (WINDUI-NATIVE TRANSLUCENT GLASS & HEALTH REWORK)
 -- ============================================================================
 function PlayerList.createPlayerCard(player, parentFrame)
     if not player or player == LocalPlayer then return end
@@ -157,7 +157,7 @@ function PlayerList.createPlayerCard(player, parentFrame)
     -- ==================== ROW 1: AVATAR & INFO ====================
     local row1 = Instance.new("Frame")
     row1.Name = "InfoRow"
-    row1.Size = UDim2.new(1, 0, 0, 68)
+    row1.Size = UDim2.new(1, 0, 0, 72)
     row1.BackgroundTransparency = 1
     row1.BorderSizePixel = 0
     row1.Parent = card
@@ -165,7 +165,7 @@ function PlayerList.createPlayerCard(player, parentFrame)
     -- Avatar Box (Full body head-to-toe preview)
     local avatarBox = Instance.new("Frame")
     avatarBox.Name = "AvatarBox"
-    avatarBox.Size = UDim2.new(0, 52, 0, 68)
+    avatarBox.Size = UDim2.new(0, 52, 0, 72)
     avatarBox.Position = UDim2.new(0, 0, 0, 0)
     avatarBox.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     avatarBox.BackgroundTransparency = 0.35
@@ -207,8 +207,8 @@ function PlayerList.createPlayerCard(player, parentFrame)
     -- Player Info Column
     local infoCol = Instance.new("Frame")
     infoCol.Name = "InfoCol"
-    infoCol.Size = UDim2.new(1, -60, 1, 0)
-    infoCol.Position = UDim2.new(0, 60, 0, 0)
+    infoCol.Size = UDim2.new(1, -62, 1, 0)
+    infoCol.Position = UDim2.new(0, 62, 0, 0)
     infoCol.BackgroundTransparency = 1
     infoCol.BorderSizePixel = 0
     infoCol.Parent = row1
@@ -216,7 +216,7 @@ function PlayerList.createPlayerCard(player, parentFrame)
     local infoLayout = Instance.new("UIListLayout")
     infoLayout.FillDirection = Enum.FillDirection.Vertical
     infoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    infoLayout.Padding = UDim.new(0, 2)
+    infoLayout.Padding = UDim.new(0, 3)
     infoLayout.Parent = infoCol
 
     -- DisplayName
@@ -232,25 +232,68 @@ function PlayerList.createPlayerCard(player, parentFrame)
     dispLabel.TextTruncate = Enum.TextTruncate.AtEnd
     dispLabel.Parent = infoCol
 
-    -- Username & Team
-    local teamStr = (player.Team and player.Team.Name) or "Neutral"
+    -- SubRow: Username & Team Badge
+    local subRow = Instance.new("Frame")
+    subRow.Name = "SubRow"
+    subRow.Size = UDim2.new(1, 0, 0, 15)
+    subRow.BackgroundTransparency = 1
+    subRow.BorderSizePixel = 0
+    subRow.Parent = infoCol
+
+    local subLayout = Instance.new("UIListLayout")
+    subLayout.FillDirection = Enum.FillDirection.Horizontal
+    subLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    subLayout.Padding = UDim.new(0, 6)
+    subLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    subLayout.Parent = subRow
+
     local userLabel = Instance.new("TextLabel")
-    userLabel.Name = "UsernameTeam"
-    userLabel.Size = UDim2.new(1, 0, 0, 14)
+    userLabel.Name = "Username"
+    userLabel.Size = UDim2.new(0, 0, 1, 0)
+    userLabel.AutomaticSize = Enum.AutomaticSize.X
     userLabel.BackgroundTransparency = 1
-    userLabel.Text = "@" .. player.Name .. "  •  " .. teamStr
-    userLabel.TextColor3 = Color3.fromRGB(150, 150, 165)
+    userLabel.Text = "@" .. player.Name
+    userLabel.TextColor3 = Color3.fromRGB(140, 140, 155)
     userLabel.Font = Enum.Font.Gotham
     userLabel.TextSize = 11
     userLabel.TextXAlignment = Enum.TextXAlignment.Left
     userLabel.TextTruncate = Enum.TextTruncate.AtEnd
-    userLabel.Parent = infoCol
+    userLabel.Parent = subRow
 
-    -- Health Bar Background
+    local isMarine = player.Team and player.Team.Name == "Marines"
+    local teamBadge = Instance.new("Frame")
+    teamBadge.Name = "TeamBadge"
+    teamBadge.Size = UDim2.new(0, 0, 0, 14)
+    teamBadge.AutomaticSize = Enum.AutomaticSize.X
+    teamBadge.BackgroundColor3 = isMarine and Color3.fromRGB(20, 45, 80) or Color3.fromRGB(70, 35, 20)
+    teamBadge.BackgroundTransparency = 0.4
+    teamBadge.BorderSizePixel = 0
+    teamBadge.Parent = subRow
+
+    local tbCorner = Instance.new("UICorner")
+    tbCorner.CornerRadius = UDim.new(0, 4)
+    tbCorner.Parent = teamBadge
+
+    local tbPadding = Instance.new("UIPadding")
+    tbPadding.PaddingLeft = UDim.new(0, 5)
+    tbPadding.PaddingRight = UDim.new(0, 5)
+    tbPadding.Parent = teamBadge
+
+    local tbLabel = Instance.new("TextLabel")
+    tbLabel.Name = "TeamLabel"
+    tbLabel.Size = UDim2.new(1, 0, 1, 0)
+    tbLabel.BackgroundTransparency = 1
+    tbLabel.Text = (player.Team and player.Team.Name) or "Neutral"
+    tbLabel.TextColor3 = isMarine and Color3.fromRGB(80, 180, 255) or Color3.fromRGB(255, 145, 80)
+    tbLabel.Font = Enum.Font.GothamBold
+    tbLabel.TextSize = 9
+    tbLabel.Parent = teamBadge
+
+    -- Modern Micro Health Track (4px height)
     local hpBg = Instance.new("Frame")
     hpBg.Name = "HealthBg"
-    hpBg.Size = UDim2.new(1, 0, 0, 6)
-    hpBg.BackgroundColor3 = Color3.fromRGB(36, 36, 48)
+    hpBg.Size = UDim2.new(1, 0, 0, 4)
+    hpBg.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
     hpBg.BorderSizePixel = 0
     hpBg.Parent = infoCol
 
@@ -261,7 +304,7 @@ function PlayerList.createPlayerCard(player, parentFrame)
     local hpFill = Instance.new("Frame")
     hpFill.Name = "HealthFill"
     hpFill.Size = UDim2.new(1, 0, 1, 0)
-    hpFill.BackgroundColor3 = Color3.fromRGB(60, 220, 100)
+    hpFill.BackgroundColor3 = Color3.fromRGB(56, 189, 248) -- Ice Cyan Accent
     hpFill.BorderSizePixel = 0
     hpFill.Parent = hpBg
 
@@ -269,17 +312,60 @@ function PlayerList.createPlayerCard(player, parentFrame)
     hpFillCorner.CornerRadius = UDim.new(1, 0)
     hpFillCorner.Parent = hpFill
 
-    -- Health Text
-    local hpLabel = Instance.new("TextLabel")
-    hpLabel.Name = "HealthText"
-    hpLabel.Size = UDim2.new(1, 0, 0, 14)
-    hpLabel.BackgroundTransparency = 1
-    hpLabel.Text = "100 / 100 HP (100%)"
-    hpLabel.TextColor3 = Color3.fromRGB(180, 180, 195)
-    hpLabel.Font = Enum.Font.GothamMedium
-    hpLabel.TextSize = 10
-    hpLabel.TextXAlignment = Enum.TextXAlignment.Left
-    hpLabel.Parent = infoCol
+    -- Health Status Row (Pill + Numeric HP)
+    local hpRow = Instance.new("Frame")
+    hpRow.Name = "HealthRow"
+    hpRow.Size = UDim2.new(1, 0, 0, 15)
+    hpRow.BackgroundTransparency = 1
+    hpRow.BorderSizePixel = 0
+    hpRow.Parent = infoCol
+
+    local hpRowLayout = Instance.new("UIListLayout")
+    hpRowLayout.FillDirection = Enum.FillDirection.Horizontal
+    hpRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    hpRowLayout.Padding = UDim.new(0, 6)
+    hpRowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    hpRowLayout.Parent = hpRow
+
+    local hpPill = Instance.new("Frame")
+    hpPill.Name = "HealthPill"
+    hpPill.Size = UDim2.new(0, 0, 0, 14)
+    hpPill.AutomaticSize = Enum.AutomaticSize.X
+    hpPill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    hpPill.BackgroundTransparency = 0.92
+    hpPill.BorderSizePixel = 0
+    hpPill.Parent = hpRow
+
+    local pillCorner = Instance.new("UICorner")
+    pillCorner.CornerRadius = UDim.new(0, 4)
+    pillCorner.Parent = hpPill
+
+    local pillPadding = Instance.new("UIPadding")
+    pillPadding.PaddingLeft = UDim.new(0, 5)
+    pillPadding.PaddingRight = UDim.new(0, 5)
+    pillPadding.Parent = hpPill
+
+    local pillLabel = Instance.new("TextLabel")
+    pillLabel.Name = "PillLabel"
+    pillLabel.Size = UDim2.new(1, 0, 1, 0)
+    pillLabel.BackgroundTransparency = 1
+    pillLabel.Text = "100%"
+    pillLabel.TextColor3 = Color3.fromRGB(56, 189, 248)
+    pillLabel.Font = Enum.Font.GothamBold
+    pillLabel.TextSize = 9
+    pillLabel.Parent = hpPill
+
+    local hpNumLabel = Instance.new("TextLabel")
+    hpNumLabel.Name = "HealthNum"
+    hpNumLabel.Size = UDim2.new(1, -50, 1, 0)
+    hpNumLabel.BackgroundTransparency = 1
+    hpNumLabel.Text = "100 / 100 HP"
+    hpNumLabel.TextColor3 = Color3.fromRGB(165, 165, 180)
+    hpNumLabel.Font = Enum.Font.GothamMedium
+    hpNumLabel.TextSize = 10
+    hpNumLabel.TextXAlignment = Enum.TextXAlignment.Left
+    hpNumLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    hpNumLabel.Parent = hpRow
 
     -- ==================== ROW 2: ACTION BUTTONS ====================
     local btnRow = Instance.new("Frame")
@@ -353,7 +439,7 @@ function PlayerList.createPlayerCard(player, parentFrame)
         PlayerList.toggleSpectate(player)
     end)
 
-    -- Live Health Update Function
+    -- Live Health Update Function (Reworked Color Palette)
     local function updateHealth()
         pcall(function()
             local char = player.Character
@@ -364,20 +450,26 @@ function PlayerList.createPlayerCard(player, parentFrame)
                 local ratio = math.clamp(hp / maxHp, 0, 1)
 
                 hpFill.Size = UDim2.new(ratio, 0, 1, 0)
+                local accentColor
                 if ratio > 0.5 then
-                    hpFill.BackgroundColor3 = Color3.fromRGB(60, 220, 100)
+                    accentColor = Color3.fromRGB(56, 189, 248) -- Ice Cyan Accent
                 elseif ratio > 0.25 then
-                    hpFill.BackgroundColor3 = Color3.fromRGB(245, 185, 45)
+                    accentColor = Color3.fromRGB(251, 191, 36) -- Warm Amber
                 else
-                    hpFill.BackgroundColor3 = Color3.fromRGB(235, 55, 65)
+                    accentColor = Color3.fromRGB(244, 63, 94)  -- Coral Crimson
                 end
 
-                hpLabel.Text = string.format("%d / %d HP (%d%%)", math.floor(hp), math.floor(maxHp), math.floor(ratio * 100))
-                hpLabel.TextColor3 = Color3.fromRGB(180, 180, 195)
+                hpFill.BackgroundColor3 = accentColor
+                pillLabel.Text = string.format("%d%%", math.floor(ratio * 100))
+                pillLabel.TextColor3 = accentColor
+                hpNumLabel.Text = string.format("%d / %d HP", math.floor(hp), math.floor(maxHp))
+                hpNumLabel.TextColor3 = Color3.fromRGB(165, 165, 180)
             else
                 hpFill.Size = UDim2.new(0, 0, 1, 0)
-                hpLabel.Text = "Dead / Respawning"
-                hpLabel.TextColor3 = Color3.fromRGB(140, 140, 150)
+                pillLabel.Text = "DEAD"
+                pillLabel.TextColor3 = Color3.fromRGB(244, 63, 94)
+                hpNumLabel.Text = "Respawning..."
+                hpNumLabel.TextColor3 = Color3.fromRGB(130, 130, 145)
             end
         end)
     end
