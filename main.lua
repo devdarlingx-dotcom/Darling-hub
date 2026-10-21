@@ -1281,6 +1281,28 @@ PlayersTab:Toggle({
     end
 })
 
+PlayersTab:Divider()
+
+PlayersTab:Paragraph({
+    Title = "Server Players",
+    Desc = "View player skins, monitor health, toggle aimbot blacklist, or spectate",
+})
+
+task.spawn(function()
+    task.wait(0.2)
+    pcall(function()
+        local PlayerList = DarlingHub:Require("modules/players/player_list.lua")
+        if PlayerList and PlayerList.mount then
+            local cf = PlayersTab.ContainerFrame or (PlayersTab.UIElements and PlayersTab.UIElements.ContainerFrame) or (PlayersTab.UIElements and PlayersTab.UIElements.Main)
+            if cf then
+                PlayerList.mount(cf)
+            else
+                PlayerList.mount(PlayersTab)
+            end
+        end
+    end)
+end)
+
 -- ========================================================================
 -- 4. PVP TAB
 -- ========================================================================

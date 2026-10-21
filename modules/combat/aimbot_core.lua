@@ -172,6 +172,9 @@ end
 
 local function isEnemy(targetPlayer)
     if not targetPlayer or targetPlayer == LocalPlayer then return false end
+    if _G.DarlingBlacklistedPlayers and (_G.DarlingBlacklistedPlayers[targetPlayer.UserId] or _G.DarlingBlacklistedPlayers[targetPlayer.Name]) then
+        return false
+    end
     if not Core.TeamCheck then return true end
     if isAlly(targetPlayer) then return false end
 
@@ -210,6 +213,12 @@ function Core.predictPosition(targetPart)
     if not targetPart then return nil end
     local char = targetPart.Parent
     if not isAlive(char) then return targetPart.Position end
+
+    -- Hitscan weapons (swords / Buddy Sword) do not lead with velocity prediction
+    local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+    if isSword then
+        return targetPart.Position
+    end
 
     local hubSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Aim) or Core
     if hubSettings.Prediction == false or Core.PredictionEnabled == false then
@@ -510,7 +519,8 @@ function Core.installHooks()
                     if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
                         return oldIndex(self, key)
                     end
-                    local tp = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
+                    local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                    local tp = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                     if tp then
                         local cp = Camera.CFrame.Position
                         if key == "Hit" then
@@ -541,7 +551,8 @@ function Core.installHooks()
                         if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
                             return oldIndex(t, k)
                         end
-                        local tp = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
+                        local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                        local tp = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                         if tp then
                             local cp = Camera.CFrame.Position
                             if k == "Hit" then
@@ -581,7 +592,8 @@ function Core.installHooks()
                         if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
                             return realStore[key] or rawget(self, key)
                         end
-                        local tp = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
+                        local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                        local tp = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                         if tp then
                             if key == "Hit" then return CFrame.new(tp) end
                             if key == "Target" then return Core.CurrentTargetPart end
@@ -628,22 +640,21 @@ function Core.installHooks()
             end
 
             if not isBlacklisted and (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart then
-                local targetPos = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
+                local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (Core.CurrentTool.Name:find("Sword") or Core.CurrentTool.Name:find("Buddy")))
+                local targetPos = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                 if targetPos then
+                    Core.faceTarget(targetPos)
+
                     if method == "FireServer" or method == "InvokeServer" then
-                        local sName = tostring(self)
-                        if sName == "RemoteEvent" or sName == "CommE" or sName == "RegisterAttack" or sName == "RemoteFunction" or sName == "CommF_" then
-                            for i, v in ipairs(args) do
-                                if typeof(v) == "Vector3" then
-                                    args[i] = targetPos
-                                end
+                        for i, v in ipairs(args) do
+                            if typeof(v) == "Vector3" then
+                                args[i] = targetPos
                             end
-                        else
-                            for i, v in ipairs(args) do
-                                if typeof(v) == "Vector3" then
-                                    args[i] = targetPos
-                                end
-                            end
+                        end
+
+                        -- Nameless & RJR Buddy Sword X / Sword InvokeServer redirection
+                        if method == "InvokeServer" and (type(args[1]) == "string" and table.find(SKILL_KEYS, args[1])) then
+                            args[2] = targetPos
                         end
                     end
                 end
