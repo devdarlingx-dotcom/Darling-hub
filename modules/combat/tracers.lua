@@ -1,6 +1,8 @@
 --[[
     Darling Hub - Tracers Module (Centered Origin)
-    Dual-layer rendering (ScreenGui rotated Frame + Drawing Line) with origin strictly at screen center.
+    High-precision line renderer starting strictly from the center of the screen
+    (Camera.ViewportSize / 2) pointing directly to the active target part.
+    Prioritizes Drawing.new(\"Line\") and uses ScreenGui as fallback to avoid ghosting or misalignment.
 ]]--
 
 local RunService = game:GetService("RunService")
@@ -51,6 +53,7 @@ local isEnabled = false
 local renderConnection = nil
 
 -- ScreenGui Element References
+local overlayGui = nil
 local guiLine = nil
 
 -- Drawing API Reference
@@ -58,21 +61,20 @@ local drawingLine = nil
 local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
 
 local function getOverlayGui()
-    if _G.DarlingHub and _G.DarlingHub.GetOverlay then
-        local ok, res = pcall(function() return _G.DarlingHub:GetOverlay() end)
-        if ok and res then return res end
-    end
+    if overlayGui and overlayGui.Parent then return overlayGui end
     local gui = Instance.new("ScreenGui")
     gui.Name = "DarlingHub_Tracers_Overlay"
     gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
+    -- Keep IgnoreGuiInset false so (0,0) matches 3D ViewportPoint exactly
+    gui.IgnoreGuiInset = false
     gui.DisplayOrder = 2147483000
     if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
     local parented = false
     if gethui then parented = pcall(function() gui.Parent = gethui() end) end
     if not parented then parented = pcall(function() gui.Parent = CoreGui end) end
     if not parented then gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
-    return gui
+    overlayGui = gui
+    return overlayGui
 end
 
 local function ensureGuiLine()
@@ -120,11 +122,15 @@ local function onRender()
     local camera = Workspace.CurrentCamera
     if not camera then return end
 
-    -- Determine target position (use active target from aimbot, or resolve closest standalone)
-    local targetPos = core and core.CurrentTargetPosition
-    if not targetPos and core and core.resolveAnyTarget then
-        local _, resolvedPos = core.resolveAnyTarget()
-        targetPos = resolvedPos
+    -- Direct target raw position (points to the actual enemy body part, NOT the prediction lead offset)
+    local targetPos = nil
+    if core and core.CurrentTargetRawPosition then
+        targetPos = core.CurrentTargetRawPosition
+    elseif core and core.CurrentTargetPart then
+        targetPos = core.CurrentTargetPart.Position
+    elseif core and core.resolveAnyTarget then
+        local part, _, _ = core.resolveAnyTarget()
+        if part then targetPos = part.Position end
     end
 
     if not targetPos then
@@ -134,40 +140,43 @@ local function onRender()
     end
 
     local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
-    if not onScreen then
+    if not onScreen or screenPos.Z <= 0 then
         if guiLine then guiLine.Visible = false end
         if drawingLine then drawingLine.Visible = false end
         return
     end
 
-    -- Origin strictly at center of viewport
+    -- Strict Screen Center Origin
     local fromPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     local toPos = Vector2.new(screenPos.X, screenPos.Y)
     local color = settings.Color or Color3.fromRGB(255, 50, 50)
     local thickness = settings.Thickness or 1.5
 
-    -- 1. Update ScreenGui Rotated Line
-    local line = ensureGuiLine()
-    if line then
-        local delta = toPos - fromPos
-        local distance = delta.Magnitude
-        local angle = math.atan2(delta.Y, delta.X)
+    if hasDrawing then
+        -- Native Drawing Line (cleanest, zero latency, no GUI offsets)
+        local dLine = ensureDrawingLine()
+        if dLine then
+            dLine.From = fromPos
+            dLine.To = toPos
+            dLine.Color = color
+            dLine.Thickness = thickness
+            dLine.Visible = true
+        end
+        if guiLine then guiLine.Visible = false end
+    else
+        -- ScreenGui Rotated Frame Fallback
+        local line = ensureGuiLine()
+        if line then
+            local delta = toPos - fromPos
+            local distance = delta.Magnitude
+            local angle = math.atan2(delta.Y, delta.X)
 
-        line.Size = UDim2.fromOffset(distance, thickness)
-        line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
-        line.Rotation = math.deg(angle)
-        line.BackgroundColor3 = color
-        line.Visible = true
-    end
-
-    -- 2. Update Drawing Line
-    local dLine = ensureDrawingLine()
-    if dLine then
-        dLine.From = fromPos
-        dLine.To = toPos
-        dLine.Color = color
-        dLine.Thickness = thickness
-        dLine.Visible = true
+            line.Size = UDim2.fromOffset(distance, thickness)
+            line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
+            line.Rotation = math.deg(angle)
+            line.BackgroundColor3 = color
+            line.Visible = true
+        end
     end
 end
 
@@ -176,8 +185,11 @@ function Tracers.enable()
     local core = getCore()
     if core then core.Tracers.Visible = true end
 
-    ensureGuiLine()
-    ensureDrawingLine()
+    if hasDrawing then
+        ensureDrawingLine()
+    else
+        ensureGuiLine()
+    end
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)

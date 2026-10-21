@@ -1657,7 +1657,7 @@ local bgInputObj = PersonalizationTab:Input({
     Title = "Media URL or ID",
     Desc = "Paste video link, slot ID, or loadstring command",
     Placeholder = "Enter URL or ID...",
-    Value = "",
+    Value = "d_d54d5cfd6e07",
     ClearTextOnFocus = false,
     Callback = function(text)
         lastEnteredBackgroundInput = text
@@ -1969,3 +1969,12 @@ WindUI:Notify({
 })
 
 Window:SelectTab(1)
+
+-- Auto-apply default background (Dark Forest) on first launch
+task.spawn(function()
+    task.wait(0.5)
+    lastEnteredBackgroundInput = "d_d54d5cfd6e07"
+    pcall(function()
+        processAndApplyMediaInput("d_d54d5cfd6e07")
+    end)
+end)

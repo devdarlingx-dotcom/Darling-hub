@@ -1,6 +1,6 @@
 --[[
     Darling Hub - FOV Circle Module
-    Dual-layer rendering (ScreenGui UIStroke + Drawing API) for 100% PC/Mobile compatibility.
+    High-precision FOV renderer with Drawing API priority and ScreenGui fallback.
 ]]--
 
 local RunService = game:GetService("RunService")
@@ -52,6 +52,7 @@ local isEnabled = false
 local renderConnection = nil
 
 -- ScreenGui Element References
+local overlayGui = nil
 local guiFrame = nil
 local guiStroke = nil
 
@@ -60,21 +61,19 @@ local drawingCircle = nil
 local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
 
 local function getOverlayGui()
-    if _G.DarlingHub and _G.DarlingHub.GetOverlay then
-        local ok, res = pcall(function() return _G.DarlingHub:GetOverlay() end)
-        if ok and res then return res end
-    end
+    if overlayGui and overlayGui.Parent then return overlayGui end
     local gui = Instance.new("ScreenGui")
     gui.Name = "DarlingHub_FOV_Overlay"
     gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
+    gui.IgnoreGuiInset = false
     gui.DisplayOrder = 2147483000
     if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
     local parented = false
     if gethui then parented = pcall(function() gui.Parent = gethui() end) end
     if not parented then parented = pcall(function() gui.Parent = CoreGui end) end
     if not parented then gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
-    return gui
+    overlayGui = gui
+    return overlayGui
 end
 
 local function ensureGuiCircle()
@@ -144,24 +143,27 @@ local function onRender()
     local color = settings.Color or Color3.fromRGB(255, 60, 60)
     local thickness = settings.Thickness or 1.5
 
-    -- Update ScreenGui
-    local frame = ensureGuiCircle()
-    if frame and guiStroke then
-        frame.Position = UDim2.fromOffset(center.X, center.Y)
-        frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
-        guiStroke.Color = color
-        guiStroke.Thickness = thickness
-        frame.Visible = true
-    end
-
-    -- Update Drawing Circle
-    local dCircle = ensureDrawingCircle()
-    if dCircle then
-        dCircle.Position = center
-        dCircle.Radius = radius
-        dCircle.Color = color
-        dCircle.Thickness = thickness
-        dCircle.Visible = true
+    if hasDrawing then
+        -- Native Drawing Circle
+        local dCircle = ensureDrawingCircle()
+        if dCircle then
+            dCircle.Position = center
+            dCircle.Radius = radius
+            dCircle.Color = color
+            dCircle.Thickness = thickness
+            dCircle.Visible = true
+        end
+        if guiFrame then guiFrame.Visible = false end
+    else
+        -- ScreenGui Fallback
+        local frame = ensureGuiCircle()
+        if frame and guiStroke then
+            frame.Position = UDim2.fromOffset(center.X, center.Y)
+            frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
+            guiStroke.Color = color
+            guiStroke.Thickness = thickness
+            frame.Visible = true
+        end
     end
 end
 
@@ -170,8 +172,11 @@ function FOV.enable()
     local core = getCore()
     if core then core.FOV.Visible = true end
 
-    ensureGuiCircle()
-    ensureDrawingCircle()
+    if hasDrawing then
+        ensureDrawingCircle()
+    else
+        ensureGuiCircle()
+    end
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)
@@ -211,10 +216,11 @@ function FOV.setRadius(radius)
 end
 
 function FOV.setMode(mode)
+    local m = (mode == "Mouse" or mode == "Center") and mode or "Center"
     local core = getCore()
-    if core then core.FOV.Mode = mode end
+    if core then core.FOV.Mode = m end
     if _G.DarlingHub and _G.DarlingHub.Settings then
-        _G.DarlingHub.Settings.FOV.Mode = mode
+        _G.DarlingHub.Settings.FOV.Mode = m
     end
 end
 
@@ -226,12 +232,20 @@ function FOV.setColor(color)
     end
 end
 
+function FOV.setThickness(thickness)
+    local t = tonumber(thickness) or 1.5
+    local core = getCore()
+    if core then core.FOV.Thickness = t end
+    if _G.DarlingHub and _G.DarlingHub.Settings then
+        _G.DarlingHub.Settings.FOV.Thickness = t
+    end
+end
+
 function FOV.destroy()
     FOV.disable()
     if guiFrame then
         pcall(function() guiFrame:Destroy() end)
         guiFrame = nil
-        guiStroke = nil
     end
     if drawingCircle then
         pcall(function() drawingCircle:Remove() end)
