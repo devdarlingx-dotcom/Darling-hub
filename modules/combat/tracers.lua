@@ -84,7 +84,7 @@ local function ensureGuiLine()
     line.Name = "TracerLine"
     line.AnchorPoint = Vector2.new(0.5, 0.5)
     line.BorderSizePixel = 0
-    line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     line.Visible = false
     line.Parent = overlay
 
@@ -99,7 +99,7 @@ local function ensureDrawingLine()
         local line = Drawing.new("Line")
         line.Thickness = 1.5
         line.Transparency = 1
-        line.Color = Color3.fromRGB(255, 50, 50)
+        line.Color = Color3.fromRGB(255, 255, 255)
         line.Visible = false
         return line
     end)
@@ -115,7 +115,7 @@ local function onRender()
     local core = getCore()
     local settings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers)
         or (core and core.Tracers)
-        or { Color = Color3.fromRGB(255, 50, 50), Thickness = 1.5 }
+        or { Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5 }
 
     local camera = Workspace.CurrentCamera
     if not camera then return end
@@ -147,7 +147,7 @@ local function onRender()
     -- Strictly from screen center
     local fromPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     local toPos = Vector2.new(screenPos.X, screenPos.Y)
-    local color = settings.Color or Color3.fromRGB(255, 50, 50)
+    local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
     -- ScreenGui Rotated Line (Guaranteed visible on mobile and PC)

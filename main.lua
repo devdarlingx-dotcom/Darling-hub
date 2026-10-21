@@ -88,7 +88,7 @@ local DarlingHub = {
     -- Shared settings: UI writes here, modules read here (no module load needed)
     Settings = {
         Aim = {
-            Mode = "360",            -- "360", "180", "FOV"
+            Mode = "FOV",            -- "FOV", "360", "180"
             Priority = "Nearest",    -- "Nearest", "Low HP", "Looking At Me"
             Hitbox = "HumanoidRootPart",
             MaxRange = 1000,
@@ -98,11 +98,11 @@ local DarlingHub = {
         FOV = {
             Radius = 100,
             Mode = "Center",         -- "Center", "Mouse"
-            Color = Color3.fromRGB(255, 60, 60),
+            Color = Color3.fromRGB(255, 255, 255),
             Thickness = 1.5,
         },
         Tracers = {
-            Color = Color3.fromRGB(255, 50, 50),
+            Color = Color3.fromRGB(255, 255, 255),
             Thickness = 1.5,
         },
         Blacklist = {
@@ -1124,10 +1124,14 @@ AimbotTab:Dropdown({
 AimbotTab:Dropdown({
     Title = "Aim Mode",
     Desc = "FOV = only targets inside the circle",
-    Values = { "360", "180", "FOV" },
-    Value = "360",
+    Values = { "FOV", "360", "180" },
+    Value = "FOV",
     Callback = function(v)
-        if type(v) == "string" then AimSettings.Aim.Mode = v end
+        if type(v) == "string" then
+            AimSettings.Aim.Mode = v
+            local core = (_G.DarlingCombatCore) or (getgenv and getgenv().DarlingCombatCore)
+            if core then core.AimMode = v end
+        end
     end
 })
 
@@ -1188,7 +1192,7 @@ AimbotTab:Dropdown({
 AimbotTab:Dropdown({
     Title = "FOV Color",
     Values = ColorNames,
-    Value = "Red",
+    Value = "White",
     Callback = function(v)
         if ColorMap[v] then AimSettings.FOV.Color = ColorMap[v] end
     end
@@ -1207,7 +1211,7 @@ AimbotTab:Toggle({
 AimbotTab:Dropdown({
     Title = "Tracer Color",
     Values = ColorNames,
-    Value = "Red",
+    Value = "White",
     Callback = function(v)
         if ColorMap[v] then AimSettings.Tracers.Color = ColorMap[v] end
     end

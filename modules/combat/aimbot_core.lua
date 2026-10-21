@@ -34,14 +34,14 @@ local Core = {
         Visible = false,
         Radius = 100,
         Mode = "Center", -- "Center", "Mouse"
-        Color = Color3.fromRGB(255, 60, 60),
+        Color = Color3.fromRGB(255, 255, 255),
         Thickness = 1.5,
     },
 
     -- Tracer Settings
     Tracers = {
         Visible = false,
-        Color = Color3.fromRGB(255, 50, 50),
+        Color = Color3.fromRGB(255, 255, 255),
         Thickness = 1.5,
     },
 
@@ -342,8 +342,22 @@ local function resolveNPCTarget(lpHRP)
 
     local candidates = {}
 
+    local function isAttackableEnemy(entity)
+        if not entity or not entity:IsA("Model") then return false end
+        if Players:GetPlayerFromCharacter(entity) then return false end
+        if not isAlive(entity) then return false end
+        if entity:FindFirstChildWhichIsA("Dialog") or entity:FindFirstChildWhichIsA("ClickDetector") then return false end
+        if entity:FindFirstChild("Quest") or entity:FindFirstChild("QuestGiver") or entity:FindFirstChild("Dialogue") then return false end
+        local name = string.lower(entity.Name)
+        local nonCombat = { "quest", "dealer", "shop", "spawn", "trainer", "boat", "blacksmith", "recruiter", "hunter", "luxury", "garrick" }
+        for _, kw in ipairs(nonCombat) do
+            if string.find(name, kw) then return false end
+        end
+        return true
+    end
+
     local function checkEntity(entity)
-        if entity:IsA("Model") and isAlive(entity) and not Players:GetPlayerFromCharacter(entity) then
+        if isAttackableEnemy(entity) then
             local part = getEntityPart(entity)
             if part then
                 local worldDist = (part.Position - lpHRP.Position).Magnitude
@@ -386,8 +400,6 @@ local function resolveNPCTarget(lpHRP)
     local folders = {
         Workspace:FindFirstChild("Enemies"),
         Workspace:FindFirstChild("Characters"),
-        Workspace:FindFirstChild("NPCs"),
-        Workspace:FindFirstChild("Live"),
     }
 
     local foundFolder = false
@@ -400,8 +412,8 @@ local function resolveNPCTarget(lpHRP)
         end
     end
 
-    if not foundFolder then
-        for _, child in ipairs(Workspace:GetChildren()) do
+    if not foundFolder and Workspace:FindFirstChild("Enemies") then
+        for _, child in ipairs(Workspace.Enemies:GetChildren()) do
             checkEntity(child)
         end
     end

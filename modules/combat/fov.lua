@@ -95,7 +95,7 @@ local function ensureGuiCircle()
 
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1.5
-    stroke.Color = Color3.fromRGB(255, 60, 60)
+    stroke.Color = Color3.fromRGB(255, 255, 255)
     stroke.Parent = frame
 
     guiFrame = frame
@@ -112,7 +112,7 @@ local function ensureDrawingCircle()
         circle.NumSides = 64
         circle.Filled = false
         circle.Transparency = 1
-        circle.Color = Color3.fromRGB(255, 60, 60)
+        circle.Color = Color3.fromRGB(255, 255, 255)
         circle.Visible = false
         return circle
     end)
@@ -126,9 +126,19 @@ end
 local function onRender()
     if not isEnabled then return end
     local core = getCore()
+    local aimSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Aim)
+    local aimMode = (aimSettings and aimSettings.Mode) or (core and core.AimMode) or "FOV"
+
+    -- If Aim Mode is not "FOV", do not display FOV circle
+    if aimMode ~= "FOV" then
+        if guiFrame then guiFrame.Visible = false end
+        if drawingCircle then drawingCircle.Visible = false end
+        return
+    end
+
     local settings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.FOV)
         or (core and core.FOV)
-        or { Radius = 100, Mode = "Center", Color = Color3.fromRGB(255, 60, 60), Thickness = 1.5 }
+        or { Radius = 100, Mode = "Center", Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5 }
 
     local camera = Workspace.CurrentCamera
     if not camera then return end
@@ -141,7 +151,7 @@ local function onRender()
     end
 
     local radius = settings.Radius or 100
-    local color = settings.Color or Color3.fromRGB(255, 60, 60)
+    local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
     -- ScreenGui (Guaranteed visibility across all mobile and PC executors)
