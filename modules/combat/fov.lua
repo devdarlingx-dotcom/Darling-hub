@@ -1,6 +1,7 @@
 --[[
     Darling Hub - FOV Circle Module
-    High-precision FOV renderer with Drawing API priority and ScreenGui fallback.
+    Dual-layer rendering ensuring 100% visibility on all Mobile and PC executors.
+    ScreenGui is always maintained and visible; Drawing API updated concurrently if present.
 ]]--
 
 local RunService = game:GetService("RunService")
@@ -65,7 +66,7 @@ local function getOverlayGui()
     local gui = Instance.new("ScreenGui")
     gui.Name = "DarlingHub_FOV_Overlay"
     gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = false
+    gui.IgnoreGuiInset = true
     gui.DisplayOrder = 2147483000
     if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
     local parented = false
@@ -143,8 +144,18 @@ local function onRender()
     local color = settings.Color or Color3.fromRGB(255, 60, 60)
     local thickness = settings.Thickness or 1.5
 
+    -- ScreenGui (Guaranteed visibility across all mobile and PC executors)
+    local frame = ensureGuiCircle()
+    if frame and guiStroke then
+        frame.Position = UDim2.fromOffset(center.X, center.Y)
+        frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
+        guiStroke.Color = color
+        guiStroke.Thickness = thickness
+        frame.Visible = true
+    end
+
+    -- Drawing API Circle (synced if supported)
     if hasDrawing then
-        -- Native Drawing Circle
         local dCircle = ensureDrawingCircle()
         if dCircle then
             dCircle.Position = center
@@ -152,17 +163,6 @@ local function onRender()
             dCircle.Color = color
             dCircle.Thickness = thickness
             dCircle.Visible = true
-        end
-        if guiFrame then guiFrame.Visible = false end
-    else
-        -- ScreenGui Fallback
-        local frame = ensureGuiCircle()
-        if frame and guiStroke then
-            frame.Position = UDim2.fromOffset(center.X, center.Y)
-            frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
-            guiStroke.Color = color
-            guiStroke.Thickness = thickness
-            frame.Visible = true
         end
     end
 end
@@ -172,11 +172,8 @@ function FOV.enable()
     local core = getCore()
     if core then core.FOV.Visible = true end
 
-    if hasDrawing then
-        ensureDrawingCircle()
-    else
-        ensureGuiCircle()
-    end
+    ensureGuiCircle()
+    if hasDrawing then ensureDrawingCircle() end
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)

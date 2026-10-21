@@ -1,6 +1,7 @@
 --[[
     Darling Hub - Skill Blacklist Module
     Allows selective exclusion of skills from aimbot redirection.
+    Handles both array and map dropdown selections.
 ]]--
 
 local Blacklist = {}
@@ -46,13 +47,13 @@ function Blacklist.set(category, key, state)
     local core = getCore()
     local boolState = (state == true)
 
-    if core and core.BlacklistedKeys[category] and core.BlacklistedKeys[category][key] ~= nil then
+    if core and core.BlacklistedKeys and core.BlacklistedKeys[category] then
         core.BlacklistedKeys[category][key] = boolState
     end
 
     if _G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Blacklist then
         local b = _G.DarlingHub.Settings.Blacklist
-        if b[category] and b[category][key] ~= nil then
+        if b[category] then
             b[category][key] = boolState
         end
     end
@@ -60,8 +61,10 @@ end
 
 function Blacklist.get(category, key)
     local core = getCore()
-    if core and core.BlacklistedKeys[category] and core.BlacklistedKeys[category][key] ~= nil then
-        return core.BlacklistedKeys[category][key]
+    if core and core.BlacklistedKeys and core.BlacklistedKeys[category] then
+        if core.BlacklistedKeys[category][key] ~= nil then
+            return core.BlacklistedKeys[category][key]
+        end
     end
     if _G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Blacklist then
         local b = _G.DarlingHub.Settings.Blacklist
@@ -74,7 +77,7 @@ end
 
 function Blacklist.reset()
     local core = getCore()
-    if core then
+    if core and core.BlacklistedKeys then
         for cat, keys in pairs(core.BlacklistedKeys) do
             for k, _ in pairs(keys) do
                 core.BlacklistedKeys[cat][k] = false
@@ -91,12 +94,18 @@ function Blacklist.reset()
     end
 end
 
--- Applies array of strings like {"Melee Z", "Fruit C", "Sword X"}
+-- Applies array or map from WindUI multi-dropdown
 function Blacklist.apply(selection)
     Blacklist.reset()
     if type(selection) ~= "table" then return end
-    for _, item in ipairs(selection) do
-        if type(item) == "string" then
+    for k, v in pairs(selection) do
+        local item = nil
+        if type(v) == "string" then
+            item = v
+        elseif v == true and type(k) == "string" then
+            item = k
+        end
+        if item then
             local cat, key = item:match("^(%a+)%s+(%a+)$")
             if cat and key then
                 Blacklist.set(cat, key, true)

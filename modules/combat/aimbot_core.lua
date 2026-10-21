@@ -82,6 +82,13 @@ local SKILL_KEYS = { "Z", "X", "C", "V", "F", "TAP" }
 -- ============================================================================
 function Core.getToolCategory(tool)
     if not tool then return "Melee" end
+    pcall(function()
+        local tip = string.lower(tool.ToolTip or "")
+        if string.find(tip, "melee") then return "Melee" end
+        if string.find(tip, "sword") then return "Sword" end
+        if string.find(tip, "fruit") then return "Fruit" end
+        if string.find(tip, "gun") then return "Gun" end
+    end)
     local name = string.lower(tool.Name)
 
     local gunNames = { "guitar", "rifle", "cannon", "gun", "slingshot", "kabucha", "bow" }
@@ -102,9 +109,12 @@ function Core.getToolCategory(tool)
 end
 
 function Core.isKeyBlacklisted(category, key)
-    if not category or not key then return false end
-    if Core.BlacklistedKeys[category] and Core.BlacklistedKeys[category][key] ~= nil then
-        return Core.BlacklistedKeys[category][key]
+    if not key then return false end
+    if category and Core.BlacklistedKeys[category] and Core.BlacklistedKeys[category][key] == true then
+        return true
+    end
+    if (key == "V" or key == "F" or key == "TAP") and Core.BlacklistedKeys.Fruit and Core.BlacklistedKeys.Fruit[key] == true then
+        return true
     end
     return false
 end
@@ -484,6 +494,10 @@ function Core.installHooks()
             local oldIndex
             oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
                 if not checkcaller() and (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart and self == mouse then
+                    local activeKey = Core.CurrentSkillKey
+                    if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
+                        return oldIndex(self, key)
+                    end
                     local tp = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                     if tp then
                         local cp = Camera.CFrame.Position
@@ -511,6 +525,10 @@ function Core.installHooks()
                 pcall(setreadonly, rawMt, false)
                 rawMt.__index = newcclosure(function(t, k)
                     if (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart and t == mouse then
+                        local activeKey = Core.CurrentSkillKey
+                        if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
+                            return oldIndex(t, k)
+                        end
                         local tp = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                         if tp then
                             local cp = Camera.CFrame.Position
@@ -547,6 +565,10 @@ function Core.installHooks()
                 rawset(mouseMod, "Target", nil)
                 mmt.__index = function(self, key)
                     if (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart then
+                        local activeKey = Core.CurrentSkillKey
+                        if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
+                            return realStore[key] or rawget(self, key)
+                        end
                         local tp = Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
                         if tp then
                             if key == "Hit" then return CFrame.new(tp) end
