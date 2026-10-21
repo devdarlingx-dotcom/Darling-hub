@@ -1285,46 +1285,387 @@ local PvpTab = Window:Tab({
 })
 enhanceTabScrolling(PvpTab)
 
+local function getPvpMod(path)
+    return DarlingHub:Require(path)
+end
+
+-- --- Combat Assistance ---
 PvpTab:Toggle({
-    Title = "Auto Attack / Kill Aura",
-    Desc = "Attacks all targets entering combat range",
+    Title = "Fast Attack (Weapons & Fruits)",
+    Desc = "Rapid-fire attack bursts for Swords, Melee, and Demon Fruits",
     Value = false,
     Callback = function(state)
-        -- Kill aura logic
+        local mod = getPvpMod("modules/pvp/fast_attack.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
     end
 })
 
 PvpTab:Slider({
-    Title = "Combat Range",
+    Title = "Fast Attack Delay",
+    Desc = "Delay between burst hits in seconds",
     Width = 200,
-    Value = {
-        Min = 5,
-        Max = 40,
-        Default = 15,
-    },
-    Step = 1,
+    Value = { Min = 0.01, Max = 0.20, Default = 0.08 },
+    Step = 0.01,
     Callback = function(val)
-        -- Combat range adjustment
+        local mod = getPvpMod("modules/pvp/fast_attack.lua")
+        if mod then mod.AttackDelay = tonumber(val) or 0.08 end
     end
 })
 
 PvpTab:Toggle({
-    Title = "Auto Parry / Auto Block",
-    Desc = "Automatically deflects incoming enemy attacks",
+    Title = "Dragon Storm Aura (Gun M1)",
+    Desc = "High-speed Gun M1 auto burst targeting Players, Mobs, and Sea Events [Key: G]",
     Value = false,
     Callback = function(state)
-        -- Auto parry logic
+        local mod = getPvpMod("modules/pvp/dragon_gun.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Dragon Gun Burst Rate",
+    Desc = "Number of gun shots fired per frame",
+    Width = 200,
+    Value = { Min = 1, Max = 8, Default = 3 },
+    Step = 1,
+    Callback = function(val)
+        local mod = getPvpMod("modules/pvp/dragon_gun.lua")
+        if mod then mod.ShotsPerFrame = math.floor(tonumber(val) or 3) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "One Shot Kitsune (Fruit M1)",
+    Desc = "High-vector projectile M1 burst for Demon Fruits within 500 studs",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/fruits_m1.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
     end
 })
 
 PvpTab:Divider()
 
+-- --- Defense & Awakening ---
+PvpTab:Toggle({
+    Title = "Auto Race V3",
+    Desc = "Automatically activates Race V3 ability in combat when health drops",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/race_awakening.lua")
+        if mod then mod.setAutoV3(state) end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Race V3 Health Threshold",
+    Desc = "Health percentage trigger for Race V3 activation",
+    Width = 200,
+    Value = { Min = 10, Max = 95, Default = 75 },
+    Step = 5,
+    Callback = function(val)
+        local mod = getPvpMod("modules/pvp/race_awakening.lua")
+        if mod then mod.V3HealthThreshold = tonumber(val) or 75 end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Auto Race V4",
+    Desc = "Automatically triggers Race V4 awakening as soon as awakening meter is full",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/race_awakening.lua")
+        if mod then mod.setAutoV4(state) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Anti Stun Hitbox",
+    Desc = "Clears enemy stun values and removes hostile body movers that freeze character",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/race_awakening.lua")
+        if mod then mod.setAntiStun(state) end
+    end
+})
+
+PvpTab:Divider()
+
+-- --- Mobility & Movement Tech ---
+PvpTab:Toggle({
+    Title = "Sanguine Z Boost",
+    Desc = "High-velocity directional launch in camera look direction [Key: Z]",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/sanguine_boost.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Sanguine Velocity Power",
+    Desc = "Linear velocity power multiplier",
+    Width = 200,
+    Value = { Min = 100, Max = 800, Default = 400 },
+    Step = 25,
+    Callback = function(val)
+        local mod = getPvpMod("modules/pvp/sanguine_boost.lua")
+        if mod then mod.VelocityPower = tonumber(val) or 400 end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Ninja Dash (0 Cooldown)",
+    Desc = "Zero-cooldown tactical zigzag dash with camera punch and physics boost [Key: F]",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/ninja_dash.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Ninja Dash Speed",
+    Desc = "Impulse velocity of the ninja dash",
+    Width = 200,
+    Value = { Min = 100, Max = 500, Default = 220 },
+    Step = 20,
+    Callback = function(val)
+        local mod = getPvpMod("modules/pvp/ninja_dash.lua")
+        if mod then mod.DashSpeed = tonumber(val) or 220 end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Infinite Flashstep",
+    Desc = "Sets Flashstep cooldown to zero for unlimited instant teleports",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/flashstep.lua")
+        if mod then mod.setInfinite(state) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Soru TP Aimbot",
+    Desc = "Teleports directly onto target enemy player upon using Flashstep [Key: R]",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/pvp/flashstep.lua")
+        if mod then mod.setAimbot(state) end
+    end
+})
+
 PvpTab:Dropdown({
-    Title = "Target Priority",
-    Values = { "Lowest Health", "Closest Distance", "Highest Threat" },
-    Default = "Closest Distance",
+    Title = "Soru Target Mode",
+    Values = { "Nearest Player", "Selected Player" },
+    Value = "Nearest Player",
     Callback = function(selected)
-        -- Target priority logic
+        local mod = getPvpMod("modules/pvp/flashstep.lua")
+        if mod then mod.TargetMode = selected end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Soru Max Distance",
+    Desc = "Maximum distance in studs for Soru TP aimbot",
+    Width = 200,
+    Value = { Min = 200, Max = 3000, Default = 2000 },
+    Step = 100,
+    Callback = function(val)
+        local mod = getPvpMod("modules/pvp/flashstep.lua")
+        if mod then mod.MaxDistance = tonumber(val) or 2000 end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Flight Mode",
+    Desc = "Smooth 3D camera-directed flight [Key: X, Controls: WASD, Space, Shift]",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then
+            if state then mod.startFly() else mod.stopFly() end
+        end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Flight Speed",
+    Desc = "Flight propulsion velocity",
+    Width = 200,
+    Value = { Min = 20, Max = 350, Default = 70 },
+    Step = 5,
+    Callback = function(val)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.FlySpeed = tonumber(val) or 70 end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Walk Speed Boost",
+    Desc = "Bypasses Blox Fruits speed clamp for rapid ground movement",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setWalkSpeed(state) end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Walk Speed Value",
+    Desc = "Target movement speed",
+    Width = 200,
+    Value = { Min = 16, Max = 350, Default = 32 },
+    Step = 4,
+    Callback = function(val)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setWalkSpeed(mod.WalkSpeedEnabled, tonumber(val) or 32) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Dash Distance Boost",
+    Desc = "Extends the distance of normal character dashes",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setDashDistance(state) end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Dash Distance Length",
+    Desc = "Dash length attribute value",
+    Width = 200,
+    Value = { Min = 1, Max = 300, Default = 50 },
+    Step = 5,
+    Callback = function(val)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setDashDistance(mod.DashDistanceEnabled, tonumber(val) or 50) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Super Jump",
+    Desc = "Instant direct vertical velocity impulse on Space or widget",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setSuperJump(state) end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Super Jump Power",
+    Desc = "Upward vertical impulse velocity",
+    Width = 200,
+    Value = { Min = 100, Max = 1000, Default = 500 },
+    Step = 50,
+    Callback = function(val)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.SuperJumpPower = tonumber(val) or 500 end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Infinite Air Jump (Geppo)",
+    Desc = "Resets jump counter allowing unlimited jumps in mid-air",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setInfiniteJump(state) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Walk on Water (Jesus)",
+    Desc = "Enables water walking attribute and dynamic surface platform",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setWalkOnWater(state) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Noclip",
+    Desc = "Disables character collision allowing you to walk through walls",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/movement/movement_engine.lua")
+        if mod then mod.setNoclip(state) end
+    end
+})
+
+PvpTab:Divider()
+
+-- --- Performance & Client Tweaks ---
+PvpTab:Toggle({
+    Title = "FFlags 1 (FPS Booster)",
+    Desc = "120 FPS cap, smooth plastic textures, removes atmosphere fog, hides debris",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/utility/client_tweaks.lua")
+        if mod then mod.setFFlags1(state) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "No Animations",
+    Desc = "Stops non-attack animations to fix sideways bug and character freezes",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/utility/client_tweaks.lua")
+        if mod then mod.setNoAnimations(state) end
+    end
+})
+
+PvpTab:Toggle({
+    Title = "Anti Lava",
+    Desc = "Disables limb touch detection for complete lava damage immunity",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/utility/client_tweaks.lua")
+        if mod then mod.setAntiLava(state) end
+    end
+})
+
+PvpTab:Divider()
+
+-- --- Floating Widgets Display ---
+PvpTab:Toggle({
+    Title = "Show Floating Widgets",
+    Desc = "Shows or hides all draggable quick-toggle floating widgets on screen",
+    Value = true,
+    Callback = function(state)
+        local sang = getPvpMod("modules/pvp/sanguine_boost.lua")
+        if sang then sang.setFloatingVisible(state) end
+        local gun = getPvpMod("modules/pvp/dragon_gun.lua")
+        if gun then gun.setFloatingVisible(state) end
+        local fast = getPvpMod("modules/pvp/fast_attack.lua")
+        if fast then fast.setFloatingVisible(state) end
+        local ninja = getPvpMod("modules/pvp/ninja_dash.lua")
+        if ninja then ninja.setFloatingVisible(state) end
+        local flash = getPvpMod("modules/pvp/flashstep.lua")
+        if flash then flash.setFloatingVisible(state) end
+        local fruits = getPvpMod("modules/pvp/fruits_m1.lua")
+        if fruits then fruits.setFloatingVisible(state) end
+        local mov = getPvpMod("modules/movement/movement_engine.lua")
+        if mov then
+            if mov.FlyWidget then mov.FlyWidget:SetVisible(state) end
+            if mov.SuperJumpWidget then mov.SuperJumpWidget:SetVisible(state) end
+        end
     end
 })
 
