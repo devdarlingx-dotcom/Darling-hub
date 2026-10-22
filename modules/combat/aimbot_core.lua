@@ -647,8 +647,26 @@ function Core.installHooks()
 end
 
 -- ============================================================================
--- RENDER LOOP (TARGET UPDATES)
+-- RENDER LOOP (TARGET UPDATES - OPTIMIZED FOR 60-144 FPS)
 -- ============================================================================
+local lastTargetScanTick = 0
+local TARGET_SCAN_INTERVAL = 0.08 -- 12.5 Hz entity re-scan interval
+
+local function isCurrentTargetValid(targetPart, targetChar, lpHRP, maxRange)
+    if not targetPart or not targetPart.Parent or not targetChar or not targetChar.Parent then
+        return false
+    end
+    local hum = targetChar:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then
+        return false
+    end
+    local dist = (targetPart.Position - lpHRP.Position).Magnitude
+    if dist > (maxRange + 50) then
+        return false
+    end
+    return true
+end
+
 local function updateTargetCycle()
     Camera = Workspace.CurrentCamera or Camera
     local char = LocalPlayer and LocalPlayer.Character
@@ -662,6 +680,21 @@ local function updateTargetCycle()
         return
     end
 
+    local hubSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Aim) or Core
+    local maxRange = hubSettings.MaxRange or Core.MaxRange or 1000
+    local now = os.clock()
+
+    -- 1. Fast path: if current target is still valid and within interval, update lead prediction directly at native FPS
+    if Core.CurrentTargetPart and isCurrentTargetValid(Core.CurrentTargetPart, Core.CurrentTargetCharacter, lpHRP, maxRange) then
+        if (now - lastTargetScanTick) < TARGET_SCAN_INTERVAL then
+            Core.CurrentTargetRawPosition = Core.CurrentTargetPart.Position
+            Core.CurrentTargetPosition = Core.predictPosition(Core.CurrentTargetPart)
+            return
+        end
+    end
+
+    -- 2. Scan path: periodically or when target is invalid/lost, find the optimal target
+    lastTargetScanTick = now
     local targetPart, predictedPos, targetChar = nil, nil, nil
 
     if Core.PlayerAimEnabled then
@@ -683,6 +716,7 @@ end
 function Core.startLoop()
     if Core.RenderConnection then return end
     Core.installHooks()
+    lastTargetScanTick = 0
     Core.RenderConnection = RunService.RenderStepped:Connect(updateTargetCycle)
 end
 
@@ -692,6 +726,7 @@ function Core.stopLoop()
         Core.RenderConnection:Disconnect()
         Core.RenderConnection = nil
     end
+    lastTargetScanTick = 0
     Core.CurrentTargetPart = nil
     Core.CurrentTargetRawPosition = nil
     Core.CurrentTargetPosition = nil

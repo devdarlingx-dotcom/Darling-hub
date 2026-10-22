@@ -1447,7 +1447,7 @@ PvpTab:Slider({
 
 PvpTab:Toggle({
     Title = "Ninja Dash (0 Cooldown)",
-    Desc = "Zero-cooldown tactical zigzag dash with camera punch and physics boost [Key: F]",
+    Desc = "Zero-cooldown tactical zigzag dash with camera punch and physics boost [Key: Q]",
     Value = false,
     Callback = function(state)
         local mod = getPvpMod("modules/pvp/ninja_dash.lua")
@@ -3226,13 +3226,111 @@ local Translations = {
     }
 }
 
+local TabTranslations = {
+    ["English"] = {
+        Home = "Home",
+        Aimbot = "Aimbot",
+        Players = "Players",
+        Pvp = "PVP & Combat",
+        Visuals = "Visuals",
+        Skins = "Skins Suite",
+        Music = "Music Player",
+        Dragon = "Summon Dragon",
+        Personalization = "Personalization",
+        Settings = "Settings",
+    },
+    ["Español"] = {
+        Home = "Inicio",
+        Aimbot = "Aimbot",
+        Players = "Jugadores",
+        Pvp = "PVP y Combate",
+        Visuals = "Visuales",
+        Skins = "Aspectos",
+        Music = "Reproductor",
+        Dragon = "Summon Dragon",
+        Personalization = "Personalizar",
+        Settings = "Ajustes",
+    },
+    ["Français"] = {
+        Home = "Accueil",
+        Aimbot = "Aimbot",
+        Players = "Joueurs",
+        Pvp = "JcJ et Combat",
+        Visuals = "Visuels",
+        Skins = "Apparences",
+        Music = "Musique",
+        Dragon = "Summon Dragon",
+        Personalization = "Personnalisation",
+        Settings = "Parametres",
+    },
+    ["Tiếng Việt"] = {
+        Home = "Trang Chu",
+        Aimbot = "Aimbot",
+        Players = "Nguoi Choi",
+        Pvp = "PVP Chien Dau",
+        Visuals = "Hinh Anh",
+        Skins = "Giao Dien",
+        Music = "Am Nhac",
+        Dragon = "Summon Dragon",
+        Personalization = "Tuy Chinh",
+        Settings = "Cai Dat",
+    },
+    ["Português"] = {
+        Home = "Inicio",
+        Aimbot = "Aimbot",
+        Players = "Jogadores",
+        Pvp = "PVP e Combate",
+        Visuals = "Visuais",
+        Skins = "Trajes",
+        Music = "Musica",
+        Dragon = "Summon Dragon",
+        Personalization = "Personalizacao",
+        Settings = "Configuracoes",
+    }
+}
+
+local function setTabLabel(tab, newTitle)
+    if not tab then return end
+    tab.Title = newTitle
+    pcall(function()
+        if tab.UIElements and tab.UIElements.Main then
+            for _, desc in ipairs(tab.UIElements.Main:GetDescendants()) do
+                if desc:IsA("TextLabel") then
+                    desc.Text = newTitle
+                    break
+                end
+            end
+        end
+    end)
+end
+
+local LanguageDropdown = nil
+
+local function applyLanguage(lang)
+    if not Translations[lang] then return end
+    currentLanguage = lang
+    local tabTexts = TabTranslations[lang] or TabTranslations["English"]
+
+    setTabLabel(HomeTab, tabTexts.Home)
+    setTabLabel(AimbotTab, tabTexts.Aimbot)
+    setTabLabel(PlayersTab, tabTexts.Players)
+    setTabLabel(PvpTab, tabTexts.Pvp)
+    setTabLabel(VisualsTab, tabTexts.Visuals)
+    setTabLabel(SkinsTab, tabTexts.Skins)
+    setTabLabel(MusicTab, tabTexts.Music)
+    setTabLabel(SummonDragonTab, tabTexts.Dragon)
+    setTabLabel(PersonalizationTab, tabTexts.Personalization)
+    setTabLabel(SettingsTab, tabTexts.Settings)
+end
+
 local function tr(key)
     local l = Translations[currentLanguage] or Translations["English"]
     return l[key] or Translations["English"][key] or key
 end
 
 local CONFIG_FOLDER = "darling_hub"
-local CONFIG_FILE = "darling_hub/config.json"
+local PRIMARY_CONFIG = "darling_hub/config.json"
+local FALLBACK_CONFIG = "darling_config.json"
 local autoSaveConfig = true
 
 local function ensureConfigFolder()
@@ -3274,58 +3372,78 @@ local function saveHubConfig()
     end)
 
     if writefile then
+        local json = HttpService:JSONEncode(cfg)
         local ok, err = pcall(function()
-            local json = HttpService:JSONEncode(cfg)
-            writefile(CONFIG_FILE, json)
+            writefile(PRIMARY_CONFIG, json)
         end)
+        if not ok then
+            ok, err = pcall(function()
+                writefile(FALLBACK_CONFIG, json)
+            end)
+        end
         return ok, err
     end
     return false, "writefile not supported on this executor"
 end
 
 local function loadHubConfig()
-    if isfile and readfile then
-        local exists = false
-        pcall(function() exists = isfile(CONFIG_FILE) end)
-        if not exists then return false, "No saved config found" end
-
-        local ok, data = pcall(function()
-            local raw = readfile(CONFIG_FILE)
-            return HttpService:JSONDecode(raw)
-        end)
-        if not ok or type(data) ~= "table" then return false, "Invalid config data" end
-
-        pcall(function()
-            if data.Language and Translations[data.Language] then
-                currentLanguage = data.Language
-            end
-            if data.Keybind and Enum.KeyCode[data.Keybind] then
-                currentToggleKey = Enum.KeyCode[data.Keybind]
-            end
-            if data.AutoSave ~= nil then
-                autoSaveConfig = data.AutoSave
-            end
-            if data.Theme and WindUI then
-                pcall(function() WindUI:SetTheme(data.Theme) end)
-            end
-            if data.BackgroundMedia and data.BackgroundMedia ~= "" then
-                lastEnteredBackgroundInput = data.BackgroundMedia
-                task.spawn(function()
-                    processAndApplyMediaInput(data.BackgroundMedia)
-                end)
-            end
-            if data.Skins and type(data.Skins) == "table" then
-                if data.Skins.SelectedCategory then
-                    selectedCategory = data.Skins.SelectedCategory
-                end
-                if data.Skins.SelectedPreset then
-                    selectedSkinPreset = data.Skins.SelectedPreset
-                end
-            end
-        end)
-        return true, data
+    if not (readfile and isfile) then
+        return false, "readfile not supported on this executor"
     end
-    return false, "readfile not supported on this executor"
+
+    local candidatePath = nil
+    pcall(function()
+        if isfile(PRIMARY_CONFIG) then
+            candidatePath = PRIMARY_CONFIG
+        elseif isfile(FALLBACK_CONFIG) then
+            candidatePath = FALLBACK_CONFIG
+        end
+    end)
+
+    if not candidatePath then
+        return false, "No saved config found"
+    end
+
+    local ok, data = pcall(function()
+        local raw = readfile(candidatePath)
+        return HttpService:JSONDecode(raw)
+    end)
+    if not ok or type(data) ~= "table" then
+        return false, "Invalid config data"
+    end
+
+    pcall(function()
+        if data.Language and Translations[data.Language] then
+            applyLanguage(data.Language)
+            if LanguageDropdown and LanguageDropdown.Select then
+                pcall(function() LanguageDropdown:Select(data.Language) end)
+            end
+        end
+        if data.Keybind and Enum.KeyCode[data.Keybind] then
+            currentToggleKey = Enum.KeyCode[data.Keybind]
+        end
+        if data.AutoSave ~= nil then
+            autoSaveConfig = data.AutoSave
+        end
+        if data.Theme and WindUI then
+            pcall(function() WindUI:SetTheme(data.Theme) end)
+        end
+        if data.BackgroundMedia and data.BackgroundMedia ~= "" then
+            lastEnteredBackgroundInput = data.BackgroundMedia
+            task.spawn(function()
+                processAndApplyMediaInput(data.BackgroundMedia)
+            end)
+        end
+        if data.Skins and type(data.Skins) == "table" then
+            if data.Skins.SelectedCategory then
+                selectedCategory = data.Skins.SelectedCategory
+            end
+            if data.Skins.SelectedPreset then
+                selectedSkinPreset = data.Skins.SelectedPreset
+            end
+        end
+    end)
+    return true, data
 end
 
 local SettingsTab = Window:Tab({
@@ -3340,14 +3458,14 @@ SettingsTab:Paragraph({
     Image = "settings"
 })
 
-SettingsTab:Dropdown({
+LanguageDropdown = SettingsTab:Dropdown({
     Title = "Interface Language",
     Desc = "Select language: English, Español, Français, Tiếng Việt, Português",
     Values = SupportedLanguages,
     Default = "English",
     Callback = function(lang)
         if Translations[lang] then
-            currentLanguage = lang
+            applyLanguage(lang)
             WindUI:Notify({
                 Title = tr("Language"),
                 Content = tr("LanguageChanged"),
@@ -3458,10 +3576,15 @@ SettingsTab:Button({
         currentToggleKey = Enum.KeyCode.F
         autoSaveConfig = true
         pcall(function()
-            if isfile and delfile and isfile(CONFIG_FILE) then
-                delfile(CONFIG_FILE)
+            if isfile and delfile then
+                if isfile(PRIMARY_CONFIG) then delfile(PRIMARY_CONFIG) end
+                if isfile(FALLBACK_CONFIG) then delfile(FALLBACK_CONFIG) end
             end
         end)
+        applyLanguage("English")
+        if LanguageDropdown and LanguageDropdown.Select then
+            pcall(function() LanguageDropdown:Select("English") end)
+        end
         WindUI:Notify({
             Title = "Settings Reset",
             Content = tr("ConfigReset"),

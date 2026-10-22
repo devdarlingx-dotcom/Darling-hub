@@ -2064,26 +2064,41 @@ function Transcendence.startFlightController()
         local cam = Workspace.CurrentCamera
         local camCF = cam.CFrame
 
-        -- Movement input (Unified Mobile Virtual Thumbstick + PC WASD)
-        local moveDir = Vector3.new(0, 0, 0)
-        local rawVec = Vector3.new(0, 0, 0)
-        local okVec, v = pcall(function() return UserInputService:GetMoveVector() end)
-        if okVec and v and v.Magnitude > 0.05 then
-            rawVec = v
-        elseif hum.MoveDirection.Magnitude > 0.05 then
-            rawVec = hum.MoveDirection
+        -- Movement input (Direct PC Keyboard WASD + Mobile Virtual Thumbstick)
+        local fwd = 0
+        local rgt = 0
+
+        -- 1. Direct keyboard polling (PC priority)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.Up) then
+            fwd = fwd + 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) or UserInputService:IsKeyDown(Enum.KeyCode.Down) then
+            fwd = fwd - 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then
+            rgt = rgt + 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then
+            rgt = rgt - 1
         end
 
-        if rawVec.Magnitude > 0.05 then
-            local fwd = -rawVec.Z
-            local rgt = rawVec.X
+        -- 2. Thumbstick / Gamepad / Mobile input fallback
+        if fwd == 0 and rgt == 0 then
+            local okVec, v = pcall(function() return UserInputService:GetMoveVector() end)
+            if okVec and typeof(v) == "Vector3" and v.Magnitude > 0.05 then
+                fwd = -v.Z
+                rgt = v.X
+            end
+        end
+
+        -- Clamp inputs to valid range [-1, 1]
+        fwd = math.clamp(fwd, -1, 1)
+        rgt = math.clamp(rgt, -1, 1)
+
+        -- 3. Construct camera-relative movement direction
+        local moveDir = Vector3.new(0, 0, 0)
+        if math.abs(fwd) > 0.05 or math.abs(rgt) > 0.05 then
             moveDir = (camCF.LookVector * fwd) + (camCF.RightVector * rgt)
-        else
-            -- Direct keyboard fallback only if GetMoveVector returned zero
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
         end
 
         -- Vertical ascent, descent, and sprint boost
