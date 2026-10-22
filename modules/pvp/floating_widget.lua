@@ -73,10 +73,10 @@ function FloatingWidget.create(config)
     -- Compact Mobile-Friendly Frame Container
     local pill = Instance.new("TextButton")
     pill.Name = id
-    pill.Size = UDim2.fromOffset(58, 38)
+    pill.Size = UDim2.fromOffset(58, 36)
     pill.Position = defaultPos
-    pill.BackgroundColor3 = Color3.fromRGB(18, 16, 26)
-    pill.BackgroundTransparency = 0.15
+    pill.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    pill.BackgroundTransparency = 0.2
     pill.BorderSizePixel = 0
     pill.AutoButtonColor = false
     pill.Text = ""
@@ -85,13 +85,14 @@ function FloatingWidget.create(config)
     pill.Parent = screenGui
 
     local pillCorner = Instance.new("UICorner")
-    pillCorner.CornerRadius = UDim.new(0, 10)
+    pillCorner.CornerRadius = UDim.new(0, 8)
     pillCorner.Parent = pill
 
     local pillStroke = Instance.new("UIStroke")
     pillStroke.Name = "BorderStroke"
-    pillStroke.Thickness = 1.4
-    pillStroke.Color = accentColor
+    pillStroke.Thickness = 1.0
+    pillStroke.Color = Color3.fromRGB(255, 255, 255)
+    pillStroke.Transparency = 0.35
     pillStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     pillStroke.Parent = pill
 
@@ -101,7 +102,7 @@ function FloatingWidget.create(config)
     textLabel.Size = UDim2.fromScale(1, 1)
     textLabel.BackgroundTransparency = 1
     textLabel.Font = Enum.Font.GothamBold
-    textLabel.TextSize = (string.len(label) > 3) and 11 or 15
+    textLabel.TextSize = (string.len(label) > 3) and 10 or 14
     textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     textLabel.Text = label
     textLabel.Parent = pill
@@ -114,7 +115,7 @@ function FloatingWidget.create(config)
         statusDot.Size = UDim2.fromOffset(6, 6)
         statusDot.Position = UDim2.fromOffset(6, 6)
         statusDot.BorderSizePixel = 0
-        statusDot.BackgroundColor3 = enabled and Color3.fromRGB(56, 224, 128) or Color3.fromRGB(244, 63, 94)
+        statusDot.BackgroundColor3 = enabled and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(239, 68, 68)
         statusDot.Parent = pill
 
         local dotCorner = Instance.new("UICorner")
@@ -142,16 +143,19 @@ function FloatingWidget.create(config)
     local function updateVisuals()
         if self.Type == "Toggle" then
             if self.Enabled then
-                pillStroke.Color = self.AccentColor
-                if self.StatusDot then self.StatusDot.BackgroundColor3 = Color3.fromRGB(56, 224, 128) end
+                pillStroke.Color = Color3.fromRGB(255, 255, 255)
+                pillStroke.Transparency = 0.15
+                if self.StatusDot then self.StatusDot.BackgroundColor3 = Color3.fromRGB(74, 222, 128) end
                 textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
             else
-                pillStroke.Color = Color3.fromRGB(60, 56, 75)
-                if self.StatusDot then self.StatusDot.BackgroundColor3 = Color3.fromRGB(244, 63, 94) end
-                textLabel.TextColor3 = Color3.fromRGB(160, 155, 175)
+                pillStroke.Color = Color3.fromRGB(255, 255, 255)
+                pillStroke.Transparency = 0.65
+                if self.StatusDot then self.StatusDot.BackgroundColor3 = Color3.fromRGB(239, 68, 68) end
+                textLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
             end
         else
-            pillStroke.Color = self.AccentColor
+            pillStroke.Color = Color3.fromRGB(255, 255, 255)
+            pillStroke.Transparency = 0.35
             textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         end
     end
@@ -171,61 +175,69 @@ function FloatingWidget.create(config)
 
         -- Visual feedback: flash green with "!" for 0.35s
         pcall(function()
-            pill.BackgroundColor3 = Color3.fromRGB(50, 200, 80)
+            pill.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
             textLabel.Text = "!"
-            pillStroke.Color = Color3.fromRGB(110, 255, 140)
+            pillStroke.Transparency = 0.05
         end)
 
         task.delay(0.35, function()
             pcall(function()
                 if pill and pill.Parent then
-                    pill.BackgroundColor3 = Color3.fromRGB(18, 16, 26)
+                    pill.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
                     textLabel.Text = self.BaseLabel
-                    pillStroke.Color = self.AccentColor
+                    pillStroke.Transparency = 0.35
                 end
             end)
             self.Cooldown = false
         end)
     end
 
-    -- Non-stick Dragging with Tap Distinction
-    local dragging = false
+    -- Strictly Isolated Dragging & Clicking (Never Fires Automatically)
+    local isInteracting = false
+    local currentInput = nil
     local dragStart = nil
     local startPos = nil
-    local moved = false
+    local hasMoved = false
 
     table.insert(self.Connections, pill.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if not FloatingWidget.Locked then
-                dragging = true
-                moved = false
-                dragStart = input.Position
-                startPos = pill.Position
-            end
+            isInteracting = true
+            currentInput = input
+            dragStart = input.Position
+            startPos = pill.Position
+            hasMoved = false
         end
     end))
 
     table.insert(self.Connections, UserInputService.InputChanged:Connect(function(input)
-        if dragging and not FloatingWidget.Locked and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            if delta.Magnitude > 6 then
-                moved = true
-                pill.Position = UDim2.new(
-                    startPos.X.Scale,
-                    startPos.X.Offset + delta.X,
-                    startPos.Y.Scale,
-                    startPos.Y.Offset + delta.Y
-                )
+        if isInteracting and input == currentInput and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            if dragStart and startPos then
+                local delta = input.Position - dragStart
+                if delta.Magnitude > 6 then
+                    hasMoved = true
+                    if not FloatingWidget.Locked then
+                        pill.Position = UDim2.new(
+                            startPos.X.Scale,
+                            startPos.X.Offset + delta.X,
+                            startPos.Y.Scale,
+                            startPos.Y.Offset + delta.Y
+                        )
+                    end
+                end
             end
         end
     end))
 
     table.insert(self.Connections, UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if dragging then
-                dragging = false
-            end
-            if not moved then
+        if isInteracting and input == currentInput then
+            isInteracting = false
+            currentInput = nil
+            local wasDrag = hasMoved
+            hasMoved = false
+            dragStart = nil
+            startPos = nil
+
+            if not wasDrag then
                 if self.Type == "Action" then
                     self:TriggerAction()
                 else

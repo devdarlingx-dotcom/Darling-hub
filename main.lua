@@ -1716,22 +1716,12 @@ end
 
 -- --- Player ESP & Multi-Tracers ---
 VisualsTab:Toggle({
-    Title = "Master ESP",
-    Desc = "Master switch for player wallhacks, bounding boxes, and multi-tracers",
-    Value = false,
-    Callback = function(state)
-        local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.setEnabled(state) end
-    end
-})
-
-VisualsTab:Toggle({
     Title = "2D Quad Boxes",
     Desc = "Renders cornered 2D bounding boxes around all enemy players",
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.Boxes = state end
+        if mod then mod.setBoxes(state) end
     end
 })
 
@@ -1741,7 +1731,7 @@ VisualsTab:Toggle({
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.Names = state end
+        if mod then mod.setNames(state) end
     end
 })
 
@@ -1751,7 +1741,7 @@ VisualsTab:Toggle({
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.Health = state end
+        if mod then mod.setHealth(state) end
     end
 })
 
@@ -1761,7 +1751,7 @@ VisualsTab:Toggle({
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.Distance = state end
+        if mod then mod.setDistance(state) end
     end
 })
 
@@ -1771,7 +1761,7 @@ VisualsTab:Toggle({
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.Tool = state end
+        if mod then mod.setTool(state) end
     end
 })
 
@@ -1781,7 +1771,7 @@ VisualsTab:Toggle({
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.Chams = state end
+        if mod then mod.setChams(state) end
     end
 })
 
@@ -1791,86 +1781,29 @@ VisualsTab:Toggle({
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/esp.lua")
-        if mod then mod.TracersAll = state end
-    end
-})
-
-VisualsTab:Divider()
-
--- --- Animated Crosshair (Love Breeze) ---
-VisualsTab:Toggle({
-    Title = "Love Breeze Crosshair",
-    Desc = "Animated rotating and resizing dynamic crosshair with high performance",
-    Value = false,
-    Callback = function(state)
-        local mod = getVisualsMod("modules/visuals/crosshair.lua")
-        if mod then mod.setEnabled(state) end
+        if mod then mod.setTracers(state) end
     end
 })
 
 VisualsTab:Dropdown({
-    Title = "Crosshair Position Mode",
-    Values = { "Center", "Mouse" },
-    Value = "Center",
+    Title = "Tracer Line Color",
+    Values = { "White", "Cyan", "Purple", "Green", "Yellow", "Orange", "Red", "Pink" },
+    Value = "White",
     Callback = function(selected)
-        local mod = getVisualsMod("modules/visuals/crosshair.lua")
-        if mod then mod.Mode = selected end
-    end
-})
-
-VisualsTab:Toggle({
-    Title = "Spin Animation",
-    Desc = "Continuously rotates crosshair arms around center point",
-    Value = true,
-    Callback = function(state)
-        local mod = getVisualsMod("modules/visuals/crosshair.lua")
-        if mod then mod.Spin = state end
-    end
-})
-
-VisualsTab:Slider({
-    Title = "Spin Speed",
-    Desc = "Crosshair rotation velocity",
-    Width = 200,
-    Value = { Min = 50, Max = 400, Default = 150 },
-    Step = 10,
-    Callback = function(val)
-        local mod = getVisualsMod("modules/visuals/crosshair.lua")
-        if mod then mod.SpinSpeed = tonumber(val) or 150 end
-    end
-})
-
-VisualsTab:Toggle({
-    Title = "Dynamic Resizing",
-    Desc = "Smoothly pulses crosshair arm radius back and forth",
-    Value = true,
-    Callback = function(state)
-        local mod = getVisualsMod("modules/visuals/crosshair.lua")
-        if mod then mod.Resize = state end
-    end
-})
-
-VisualsTab:Slider({
-    Title = "Resize Speed",
-    Desc = "Crosshair pulsation frequency",
-    Width = 200,
-    Value = { Min = 50, Max = 400, Default = 150 },
-    Step = 10,
-    Callback = function(val)
-        local mod = getVisualsMod("modules/visuals/crosshair.lua")
-        if mod then mod.ResizeSpeed = tonumber(val) or 150 end
-    end
-})
-
-VisualsTab:Slider({
-    Title = "Crosshair Radius",
-    Desc = "Base radius distance from center",
-    Width = 200,
-    Value = { Min = 5, Max = 40, Default = 11 },
-    Step = 1,
-    Callback = function(val)
-        local mod = getVisualsMod("modules/visuals/crosshair.lua")
-        if mod then mod.Radius = tonumber(val) or 11 end
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then
+            local colors = {
+                ["White"] = Color3.fromRGB(255, 255, 255),
+                ["Cyan"] = Color3.fromRGB(56, 189, 248),
+                ["Purple"] = Color3.fromRGB(192, 132, 252),
+                ["Green"] = Color3.fromRGB(34, 197, 94),
+                ["Yellow"] = Color3.fromRGB(250, 204, 21),
+                ["Orange"] = Color3.fromRGB(251, 146, 60),
+                ["Red"] = Color3.fromRGB(244, 63, 94),
+                ["Pink"] = Color3.fromRGB(244, 114, 182),
+            }
+            mod.setTracerColor(colors[selected] or Color3.fromRGB(255, 255, 255))
+        end
     end
 })
 
@@ -2066,7 +1999,7 @@ VisualsTab:Button({
 
 VisualsTab:Button({
     Title = "Summon Celestial Titan (Transcendence 1000X)",
-    Desc = "Triggers the 34-second cinematic masterpiece cutscene and permanent celestial companion",
+    Desc = "Triggers the full 34-second cinematic masterpiece cutscene and permanent companion",
     Callback = function()
         local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
         if mod then
@@ -2077,6 +2010,49 @@ VisualsTab:Button({
                 Icon = darlingIcon
             })
             mod.play()
+        end
+    end
+})
+
+VisualsTab:Button({
+    Title = "Mount / Ride Celestial Dragon",
+    Desc = "Mounts the Celestial Titan Dragon with full 3D flight controls (WASD/Mobile thumbstick)",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            local ok = mod.mount()
+            if ok then
+                WindUI:Notify({
+                    Title = "Dragon Mount",
+                    Content = "Mounted Celestial Dragon! Steer with WASD / Mobile thumbstick.",
+                    Duration = 4,
+                    Icon = darlingIcon
+                })
+            else
+                WindUI:Notify({
+                    Title = "Dragon Mount",
+                    Content = "Failed to mount dragon. Summon or spawn it first.",
+                    Duration = 4,
+                    Icon = darlingIcon
+                })
+            end
+        end
+    end
+})
+
+VisualsTab:Button({
+    Title = "Dismount Celestial Dragon",
+    Desc = "Safely jumps off the dragon back onto the ground",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            mod.dismount()
+            WindUI:Notify({
+                Title = "Dragon Mount",
+                Content = "Dismounted dragon successfully.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
         end
     end
 })

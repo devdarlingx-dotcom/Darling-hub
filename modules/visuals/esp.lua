@@ -1,6 +1,7 @@
 --[[
     Darling Hub - Advanced PvP Player ESP & Multi-Tracers
     High-performance Player ESP: 2D Quad Boxes, Health Bars, Names, Distance, Tool, Chams, and Multi-Tracers.
+    Features independent feature toggles and customizable white tracers.
 ]]--
 
 local Players = game:GetService("Players")
@@ -12,7 +13,6 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
 local ESP = {
-    Enabled = false,
     Boxes = false,
     Names = false,
     Health = false,
@@ -23,7 +23,7 @@ local ESP = {
 
     BoxColor = Color3.fromRGB(255, 255, 255),
     NameColor = Color3.fromRGB(255, 255, 255),
-    TracerColor = Color3.fromRGB(192, 132, 252),
+    TracerColor = Color3.fromRGB(255, 255, 255),
     ChamsColor = Color3.fromRGB(244, 63, 94),
 
     Cache = {},
@@ -84,7 +84,7 @@ local function createPlayerEntry(player)
 
     local strokeOut = Instance.new("UIStroke")
     strokeOut.Color = Color3.fromRGB(0, 0, 0)
-    strokeOut.Thickness = 2.5
+    strokeOut.Thickness = 2.0
     strokeOut.Parent = boxOutline
 
     local box = Instance.new("Frame")
@@ -96,7 +96,7 @@ local function createPlayerEntry(player)
 
     local strokeIn = Instance.new("UIStroke")
     strokeIn.Color = ESP.BoxColor
-    strokeIn.Thickness = 1.2
+    strokeIn.Thickness = 1.0
     strokeIn.Parent = box
 
     -- Health Bar
@@ -116,14 +116,14 @@ local function createPlayerEntry(player)
     hpFill.Position = UDim2.fromScale(0, 1)
     hpFill.Parent = hpBg
 
-    -- Name Label
+    -- Name Label (Compact & Clean)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Name = "Name"
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextSize = 11
+    nameLabel.Font = Enum.Font.GothamMedium
+    nameLabel.TextSize = 10
     nameLabel.TextColor3 = ESP.NameColor
-    nameLabel.TextStrokeTransparency = 0.2
+    nameLabel.TextStrokeTransparency = 0.25
     nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     nameLabel.Visible = false
     nameLabel.Parent = overlay
@@ -133,14 +133,14 @@ local function createPlayerEntry(player)
     infoLabel.Name = "Info"
     infoLabel.BackgroundTransparency = 1
     infoLabel.Font = Enum.Font.GothamMedium
-    infoLabel.TextSize = 9
+    infoLabel.TextSize = 8
     infoLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
-    infoLabel.TextStrokeTransparency = 0.3
+    infoLabel.TextStrokeTransparency = 0.35
     infoLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     infoLabel.Visible = false
     infoLabel.Parent = overlay
 
-    -- Tracer Line (UI Frame rotated or Drawing line)
+    -- Tracer Snapline
     local tracerFrame = Instance.new("Frame")
     tracerFrame.Name = "Tracer"
     tracerFrame.BackgroundColor3 = ESP.TracerColor
@@ -179,7 +179,7 @@ local function drawTracerLine(frame, x1, y1, x2, y2, color)
     local distance = math.sqrt((x2 - x1)^2 + (y2 - y1)^2)
     local angle = math.deg(math.atan2(y2 - y1, x2 - x1))
 
-    frame.Size = UDim2.fromOffset(distance, 1.5)
+    frame.Size = UDim2.fromOffset(distance, 1.2)
     frame.Position = UDim2.fromOffset((x1 + x2) / 2, (y1 + y2) / 2)
     frame.Rotation = angle
     frame.BackgroundColor3 = color
@@ -225,8 +225,8 @@ local function updatePlayerESP(entry)
 
     local head = char:FindFirstChild("Head")
     local headPos = head and head.Position or (hrp.Position + Vector3.new(0, 2, 0))
-    local topPos = cam:WorldToViewportPoint(headPos + Vector3.new(0, 1.2, 0))
-    local bottomPos = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3.0, 0))
+    local topPos = cam:WorldToViewportPoint(headPos + Vector3.new(0, 1.0, 0))
+    local bottomPos = cam:WorldToViewportPoint(hrp.Position - Vector3.new(0, 2.8, 0))
 
     local boxHeight = math.abs(topPos.Y - bottomPos.Y)
     local boxWidth = boxHeight * 0.65
@@ -234,7 +234,7 @@ local function updatePlayerESP(entry)
     local boxY = topPos.Y
 
     -- 1. Box ESP
-    if ESP.Boxes and ESP.Enabled then
+    if ESP.Boxes then
         entry.BoxOutline.Position = UDim2.fromOffset(boxX, boxY)
         entry.BoxOutline.Size = UDim2.fromOffset(boxWidth, boxHeight)
         entry.BoxStroke.Color = ESP.BoxColor
@@ -244,10 +244,10 @@ local function updatePlayerESP(entry)
     end
 
     -- 2. Health Bar
-    if ESP.Health and ESP.Enabled then
+    if ESP.Health then
         local hpPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-        entry.HealthBarBg.Position = UDim2.fromOffset(boxX - 6, boxY)
-        entry.HealthBarBg.Size = UDim2.fromOffset(3, boxHeight)
+        entry.HealthBarBg.Position = UDim2.fromOffset(boxX - 5, boxY)
+        entry.HealthBarBg.Size = UDim2.fromOffset(2.5, boxHeight)
         entry.HealthBar.Size = UDim2.fromScale(1, hpPercent)
         entry.HealthBar.BackgroundColor3 = Color3.fromHSV(hpPercent * 0.33, 1, 1)
         entry.HealthBarBg.Visible = true
@@ -255,12 +255,12 @@ local function updatePlayerESP(entry)
         entry.HealthBarBg.Visible = false
     end
 
-    -- 3. Name Label
-    if ESP.Names and ESP.Enabled then
-        entry.NameLabel.Text = p.DisplayName .. " (@" .. p.Name .. ")"
+    -- 3. Name Label (Compact)
+    if ESP.Names then
+        entry.NameLabel.Text = p.DisplayName
         entry.NameLabel.TextColor3 = ESP.NameColor
-        entry.NameLabel.Position = UDim2.fromOffset(rootPos.X - 100, boxY - 16)
-        entry.NameLabel.Size = UDim2.fromOffset(200, 14)
+        entry.NameLabel.Position = UDim2.fromOffset(rootPos.X - 80, boxY - 14)
+        entry.NameLabel.Size = UDim2.fromOffset(160, 12)
         entry.NameLabel.Visible = true
     else
         entry.NameLabel.Visible = false
@@ -268,28 +268,28 @@ local function updatePlayerESP(entry)
 
     -- 4. Info Label (Distance & Tool)
     local infoParts = {}
-    if ESP.Distance and ESP.Enabled then
+    if ESP.Distance then
         local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         local dist = myHRP and math.floor((hrp.Position - myHRP.Position).Magnitude) or 0
         table.insert(infoParts, tostring(dist) .. "m")
     end
-    if ESP.Tool and ESP.Enabled then
+    if ESP.Tool then
         local tool = char:FindFirstChildOfClass("Tool")
         if tool then
             table.insert(infoParts, tool.Name)
         end
     end
-    if #infoParts > 0 and ESP.Enabled then
+    if #infoParts > 0 then
         entry.InfoLabel.Text = table.concat(infoParts, " • ")
-        entry.InfoLabel.Position = UDim2.fromOffset(rootPos.X - 100, boxY + boxHeight + 2)
-        entry.InfoLabel.Size = UDim2.fromOffset(200, 12)
+        entry.InfoLabel.Position = UDim2.fromOffset(rootPos.X - 80, boxY + boxHeight + 2)
+        entry.InfoLabel.Size = UDim2.fromOffset(160, 10)
         entry.InfoLabel.Visible = true
     else
         entry.InfoLabel.Visible = false
     end
 
-    -- 5. Multi-Tracers (to ALL visible players from bottom of screen)
-    if ESP.TracersAll and ESP.Enabled then
+    -- 5. Multi-Tracers (All Players)
+    if ESP.TracersAll then
         local vp = cam.ViewportSize
         drawTracerLine(entry.TracerLine, vp.X * 0.5, vp.Y, rootPos.X, boxY + boxHeight, ESP.TracerColor)
     else
@@ -297,7 +297,7 @@ local function updatePlayerESP(entry)
     end
 
     -- 6. Chams / Highlight
-    if ESP.Chams and ESP.Enabled then
+    if ESP.Chams then
         if not entry.Highlight or entry.Highlight.Parent ~= char then
             if entry.Highlight then entry.Highlight:Destroy() end
             local hl = Instance.new("Highlight")
@@ -319,8 +319,12 @@ local function updatePlayerESP(entry)
     end
 end
 
+function ESP.isAnyActive()
+    return ESP.Boxes or ESP.Names or ESP.Health or ESP.Distance or ESP.Tool or ESP.Chams or ESP.TracersAll
+end
+
 function ESP.renderStep()
-    if not ESP.Enabled then return end
+    if not ESP.isAnyActive() then return end
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer then
             local entry = ESP.Cache[p] or createPlayerEntry(p)
@@ -329,26 +333,67 @@ function ESP.renderStep()
     end
 end
 
-function ESP.setEnabled(state)
-    ESP.Enabled = state
-    if state and not ESP.RenderConnection then
+function ESP.updateState()
+    local shouldRun = ESP.isAnyActive()
+    if shouldRun and not ESP.RenderConnection then
         ESP.RenderConnection = RunService.RenderStepped:Connect(ESP.renderStep)
-    elseif not state and ESP.RenderConnection then
+    elseif not shouldRun and ESP.RenderConnection then
         pcall(function() ESP.RenderConnection:Disconnect() end)
         ESP.RenderConnection = nil
         for _, entry in pairs(ESP.Cache) do
-            entry.BoxOutline.Visible = false
-            entry.HealthBarBg.Visible = false
-            entry.NameLabel.Visible = false
-            entry.InfoLabel.Visible = false
-            entry.TracerLine.Visible = false
+            if entry.BoxOutline then entry.BoxOutline.Visible = false end
+            if entry.HealthBarBg then entry.HealthBarBg.Visible = false end
+            if entry.NameLabel then entry.NameLabel.Visible = false end
+            if entry.InfoLabel then entry.InfoLabel.Visible = false end
+            if entry.TracerLine then entry.TracerLine.Visible = false end
             if entry.Highlight then entry.Highlight.Enabled = false end
         end
     end
 end
 
+function ESP.setBoxes(state)
+    ESP.Boxes = (state == true)
+    ESP.updateState()
+end
+
+function ESP.setNames(state)
+    ESP.Names = (state == true)
+    ESP.updateState()
+end
+
+function ESP.setHealth(state)
+    ESP.Health = (state == true)
+    ESP.updateState()
+end
+
+function ESP.setDistance(state)
+    ESP.Distance = (state == true)
+    ESP.updateState()
+end
+
+function ESP.setTool(state)
+    ESP.Tool = (state == true)
+    ESP.updateState()
+end
+
+function ESP.setChams(state)
+    ESP.Chams = (state == true)
+    ESP.updateState()
+end
+
+function ESP.setTracers(state)
+    ESP.TracersAll = (state == true)
+    ESP.updateState()
+end
+
+function ESP.setTracerColor(color)
+    if typeof(color) == "Color3" then
+        ESP.TracerColor = color
+    end
+end
+
 Players.PlayerAdded:Connect(function(p)
-    if ESP.Enabled then createPlayerEntry(p) end
+    if ESP.isAnyActive() then createPlayerEntry(p) end
 end)
 
 Players.PlayerRemoving:Connect(removePlayerEntry)

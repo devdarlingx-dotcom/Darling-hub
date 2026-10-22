@@ -72,52 +72,69 @@ local flyKeys = { W = false, A = false, S = false, D = false, Space = false, Lef
 local function updateFlyMovement()
     if not MovementEngine.FlyEnabled then return end
     local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp or not MovementEngine.FlyBodyVelocity or not MovementEngine.FlyBodyGyro then return end
+    local hrp = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or not MovementEngine.FlyBodyVelocity or not MovementEngine.FlyBodyGyro then return end
 
     local cam = Workspace.CurrentCamera or Camera
     MovementEngine.FlyBodyGyro.CFrame = cam.CFrame
 
     local moveDir = Vector3.new(0, 0, 0)
-    if flyKeys.W then moveDir = moveDir + cam.CFrame.LookVector end
-    if flyKeys.S then moveDir = moveDir - cam.CFrame.LookVector end
-    if flyKeys.A then moveDir = moveDir - cam.CFrame.RightVector end
-    if flyKeys.D then moveDir = moveDir + cam.CFrame.RightVector end
+    local camCF = cam.CFrame
+
+    -- Mobile thumbstick and PC WASD unified via Humanoid.MoveDirection
+    local m = hum.MoveDirection
+    if m.Magnitude > 0 then
+        local fwd = m:Dot(camCF.LookVector)
+        local rgt = m:Dot(camCF.RightVector)
+        moveDir = (camCF.LookVector * fwd + camCF.RightVector * rgt)
+    end
+
+    -- PC Keyboard Direct Controls
+    if flyKeys.W then moveDir = moveDir + camCF.LookVector end
+    if flyKeys.S then moveDir = moveDir - camCF.LookVector end
+    if flyKeys.A then moveDir = moveDir - camCF.RightVector end
+    if flyKeys.D then moveDir = moveDir + camCF.RightVector end
     if flyKeys.Space then moveDir = moveDir + Vector3.new(0, 1, 0) end
     if flyKeys.LeftShift then moveDir = moveDir - Vector3.new(0, 1, 0) end
 
     if moveDir.Magnitude > 0 then
         MovementEngine.FlyBodyVelocity.Velocity = moveDir.Unit * MovementEngine.FlySpeed
     else
-        MovementEngine.FlyBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        MovementEngine.FlyBodyVelocity.Velocity = Vector3.new(0, 0.1, 0)
     end
+
+    hum:ChangeState(Enum.HumanoidStateType.Swimming)
 end
 
 function MovementEngine.startFly()
     if MovementEngine.FlyEnabled then return end
     local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hrp = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
 
     MovementEngine.FlyEnabled = true
 
+    local cam = Workspace.CurrentCamera or Camera
+
     local bv = Instance.new("BodyVelocity")
     bv.Name = "DarlingFlyVelocity"
-    bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Velocity = Vector3.new(0, 0.1, 0)
     bv.Parent = hrp
     MovementEngine.FlyBodyVelocity = bv
 
     local bg = Instance.new("BodyGyro")
     bg.Name = "DarlingFlyGyro"
-    bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-    bg.P = 10000
-    bg.CFrame = hrp.CFrame
+    bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.P = 9e4
+    bg.CFrame = cam.CFrame
     bg.Parent = hrp
     MovementEngine.FlyBodyGyro = bg
 
     hum.PlatformStand = true
+    hum:ChangeState(Enum.HumanoidStateType.Swimming)
 
     if not MovementEngine.FlyWidget and FloatingWidget then
         MovementEngine.FlyWidget = FloatingWidget.create({
@@ -157,10 +174,12 @@ function MovementEngine.stopFly()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then
         hum.PlatformStand = false
+        hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
     end
 
     if MovementEngine.FlyWidget then
         MovementEngine.FlyWidget:Set(false, true)
+        MovementEngine.FlyWidget:SetVisible(false)
     end
 end
 
