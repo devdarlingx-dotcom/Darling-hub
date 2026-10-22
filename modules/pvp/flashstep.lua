@@ -153,8 +153,8 @@ function Flashstep.setAimbot(state)
         if not Flashstep.Widget and FloatingWidget then
             Flashstep.Widget = FloatingWidget.create({
                 Id = "SoruAimbotWidget",
-                Title = "Soru TP Aimbot",
-                Subtitle = "Flashstep [R]",
+                Label = "TP",
+                Type = "Toggle",
                 Default = true,
                 Position = UDim2.new(0.35, 0, 0.34, 0),
                 AccentColor = Color3.fromRGB(56, 189, 248),
@@ -169,6 +169,7 @@ function Flashstep.setAimbot(state)
     else
         if Flashstep.Widget then
             Flashstep.Widget:Set(false, true)
+            Flashstep.Widget:SetVisible(false)
         end
     end
 end

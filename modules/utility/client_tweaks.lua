@@ -214,4 +214,30 @@ function ClientTweaks.setAntiLava(state)
     end
 end
 
+-- ========================================================================
+-- 4. CAMERA SKEW (RARE VIEW)
+-- ========================================================================
+ClientTweaks.CameraSkewEnabled = false
+ClientTweaks.SkewResolution = 0.2
+ClientTweaks.SkewConn = nil
+
+function ClientTweaks.setCameraSkew(state, resolution)
+    ClientTweaks.CameraSkewEnabled = (state == true)
+    if resolution then
+        ClientTweaks.SkewResolution = tonumber(resolution) or 0.2
+    end
+    if ClientTweaks.CameraSkewEnabled and not ClientTweaks.SkewConn then
+        ClientTweaks.SkewConn = RunService.RenderStepped:Connect(function()
+            if not ClientTweaks.CameraSkewEnabled then return end
+            local cam = Workspace.CurrentCamera
+            if cam then
+                cam.CFrame = cam.CFrame * CFrame.new(0, 0, 0, 1, 0, 0, 0, ClientTweaks.SkewResolution, 0, 0, 0, 1)
+            end
+        end)
+    elseif not ClientTweaks.CameraSkewEnabled and ClientTweaks.SkewConn then
+        pcall(function() ClientTweaks.SkewConn:Disconnect() end)
+        ClientTweaks.SkewConn = nil
+    end
+end
+
 return ClientTweaks

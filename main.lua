@@ -1579,7 +1579,7 @@ PvpTab:Slider({
 })
 
 PvpTab:Toggle({
-    Title = "Infinite Air Jump (Geppo)",
+    Title = "Infinite Air Jump",
     Desc = "Resets jump counter allowing unlimited jumps in mid-air",
     Value = false,
     Callback = function(state)
@@ -1589,7 +1589,7 @@ PvpTab:Toggle({
 })
 
 PvpTab:Toggle({
-    Title = "Walk on Water (Jesus)",
+    Title = "Walk on Water",
     Desc = "Enables water walking attribute and dynamic surface platform",
     Value = false,
     Callback = function(state)
@@ -1641,6 +1641,28 @@ PvpTab:Toggle({
     end
 })
 
+PvpTab:Toggle({
+    Title = "Camera Skew (Rare View)",
+    Desc = "Stretches and shears camera projection for wide competitive perspective",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/utility/client_tweaks.lua")
+        if mod then mod.setCameraSkew(state) end
+    end
+})
+
+PvpTab:Slider({
+    Title = "Skew Resolution",
+    Desc = "Vertical projection factor (lower is more stretched/skewed)",
+    Width = 200,
+    Value = { Min = 0.05, Max = 1.0, Default = 0.2 },
+    Step = 0.05,
+    Callback = function(val)
+        local mod = getPvpMod("modules/utility/client_tweaks.lua")
+        if mod then mod.setCameraSkew(mod.CameraSkewEnabled, tonumber(val) or 0.2) end
+    end
+})
+
 PvpTab:Divider()
 
 -- --- Floating Widgets Display ---
@@ -1669,6 +1691,16 @@ PvpTab:Toggle({
     end
 })
 
+PvpTab:Toggle({
+    Title = "Lock Widgets Position",
+    Desc = "Locks all floating action and toggle widgets in place to prevent accidental dragging",
+    Value = false,
+    Callback = function(state)
+        local fw = getPvpMod("modules/pvp/floating_widget.lua")
+        if fw and fw.LockAll then fw.LockAll(state) end
+    end
+})
+
 -- ========================================================================
 -- 5. VISUALS TAB
 -- ========================================================================
@@ -1678,50 +1710,374 @@ local VisualsTab = Window:Tab({
 })
 enhanceTabScrolling(VisualsTab)
 
+local function getVisualsMod(path)
+    return DarlingHub:Require(path)
+end
+
+-- --- Player ESP & Multi-Tracers ---
 VisualsTab:Toggle({
     Title = "Master ESP",
-    Desc = "Global switch for all wallhack and visual indicators",
+    Desc = "Master switch for player wallhacks, bounding boxes, and multi-tracers",
     Value = false,
     Callback = function(state)
-        -- Master ESP logic
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.setEnabled(state) end
     end
 })
 
 VisualsTab:Toggle({
-    Title = "2D Box ESP",
-    Desc = "Draws bounding boxes around character models",
+    Title = "2D Quad Boxes",
+    Desc = "Renders cornered 2D bounding boxes around all enemy players",
     Value = false,
     Callback = function(state)
-        -- Box ESP logic
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.Boxes = state end
     end
 })
 
 VisualsTab:Toggle({
-    Title = "Name & Distance ESP",
-    Desc = "Displays username and distance tags",
+    Title = "Player Names",
+    Desc = "Displays formatted usernames directly above player heads",
     Value = false,
     Callback = function(state)
-        -- Names ESP logic
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.Names = state end
     end
 })
 
 VisualsTab:Toggle({
-    Title = "Snaplines / Tracers",
-    Desc = "Draws guidance lines connecting your viewport to players",
+    Title = "Health Bars",
+    Desc = "Dynamic color-coded health status bar on the side of character bounding boxes",
     Value = false,
     Callback = function(state)
-        -- Tracers logic
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.Health = state end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Distance Indicator",
+    Desc = "Displays live distance measurement in studs below player feet",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.Distance = state end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Equipped Tool / Weapon",
+    Desc = "Shows current weapon, fruit, melee, or gun held by the player",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.Tool = state end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Chams / Highlights",
+    Desc = "Applies radiant silhouette highlights through walls over enemy models",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.Chams = state end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Multi-Tracers (All Players)",
+    Desc = "Draws dynamic snaplines connecting viewport origin to every player on the map",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/esp.lua")
+        if mod then mod.TracersAll = state end
     end
 })
 
 VisualsTab:Divider()
 
+-- --- Animated Crosshair (Love Breeze) ---
 VisualsTab:Toggle({
-    Title = "Chams / Highlights",
-    Desc = "Applies a radiant silhouette highlight over players",
+    Title = "Love Breeze Crosshair",
+    Desc = "Animated rotating and resizing dynamic crosshair with high performance",
     Value = false,
     Callback = function(state)
-        -- Chams logic
+        local mod = getVisualsMod("modules/visuals/crosshair.lua")
+        if mod then mod.setEnabled(state) end
+    end
+})
+
+VisualsTab:Dropdown({
+    Title = "Crosshair Position Mode",
+    Values = { "Center", "Mouse" },
+    Value = "Center",
+    Callback = function(selected)
+        local mod = getVisualsMod("modules/visuals/crosshair.lua")
+        if mod then mod.Mode = selected end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Spin Animation",
+    Desc = "Continuously rotates crosshair arms around center point",
+    Value = true,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/crosshair.lua")
+        if mod then mod.Spin = state end
+    end
+})
+
+VisualsTab:Slider({
+    Title = "Spin Speed",
+    Desc = "Crosshair rotation velocity",
+    Width = 200,
+    Value = { Min = 50, Max = 400, Default = 150 },
+    Step = 10,
+    Callback = function(val)
+        local mod = getVisualsMod("modules/visuals/crosshair.lua")
+        if mod then mod.SpinSpeed = tonumber(val) or 150 end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Dynamic Resizing",
+    Desc = "Smoothly pulses crosshair arm radius back and forth",
+    Value = true,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/crosshair.lua")
+        if mod then mod.Resize = state end
+    end
+})
+
+VisualsTab:Slider({
+    Title = "Resize Speed",
+    Desc = "Crosshair pulsation frequency",
+    Width = 200,
+    Value = { Min = 50, Max = 400, Default = 150 },
+    Step = 10,
+    Callback = function(val)
+        local mod = getVisualsMod("modules/visuals/crosshair.lua")
+        if mod then mod.ResizeSpeed = tonumber(val) or 150 end
+    end
+})
+
+VisualsTab:Slider({
+    Title = "Crosshair Radius",
+    Desc = "Base radius distance from center",
+    Width = 200,
+    Value = { Min = 5, Max = 40, Default = 11 },
+    Step = 1,
+    Callback = function(val)
+        local mod = getVisualsMod("modules/visuals/crosshair.lua")
+        if mod then mod.Radius = tonumber(val) or 11 end
+    end
+})
+
+VisualsTab:Divider()
+
+-- --- Sacred Ship Painter ---
+VisualsTab:Button({
+    Title = "Detect Player Ship",
+    Desc = "Scans within 500 studs for your vehicle seat or pirate ship",
+    Callback = function()
+        local mod = getVisualsMod("modules/visuals/ship_painter.lua")
+        if mod then
+            local ship = mod.findPlayerShip()
+            if ship then
+                WindUI:Notify({
+                    Title = "Ship Painter",
+                    Content = "Ship detected successfully: " .. tostring(ship.Name),
+                    Duration = 3,
+                    Icon = darlingIcon
+                })
+            else
+                WindUI:Notify({
+                    Title = "Ship Painter",
+                    Content = "No ship found within 500 studs. Sit in a vehicle seat first.",
+                    Duration = 4,
+                    Icon = darlingIcon
+                })
+            end
+        end
+    end
+})
+
+VisualsTab:Dropdown({
+    Title = "Ship Color",
+    Values = { "Red", "Blue", "Green", "Purple", "White", "Yellow", "Void (Black)", "Orange" },
+    Value = "Purple",
+    Callback = function(selected)
+        local mod = getVisualsMod("modules/visuals/ship_painter.lua")
+        if mod then
+            local colors = {
+                ["Red"] = Color3.fromRGB(244, 63, 94),
+                ["Blue"] = Color3.fromRGB(59, 130, 246),
+                ["Green"] = Color3.fromRGB(34, 197, 94),
+                ["Purple"] = Color3.fromRGB(192, 132, 252),
+                ["White"] = Color3.fromRGB(255, 255, 255),
+                ["Yellow"] = Color3.fromRGB(250, 204, 21),
+                ["Void (Black)"] = Color3.fromRGB(15, 15, 18),
+                ["Orange"] = Color3.fromRGB(251, 146, 60),
+            }
+            local c = colors[selected] or Color3.fromRGB(192, 132, 252)
+            mod.paintShip(c)
+        end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Rainbow Ship Mode",
+    Desc = "Continuously cycles ship material hue across full RGB spectrum",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/ship_painter.lua")
+        if mod then mod.setRainbow(state) end
+    end
+})
+
+VisualsTab:Button({
+    Title = "Reset Original Ship Colors",
+    Desc = "Restores all ship part materials and original default colors",
+    Callback = function()
+        local mod = getVisualsMod("modules/visuals/ship_painter.lua")
+        if mod then
+            local ok = mod.resetShip()
+            if ok then
+                WindUI:Notify({
+                    Title = "Ship Painter",
+                    Content = "Ship colors restored to original.",
+                    Duration = 3,
+                    Icon = darlingIcon
+                })
+            end
+        end
+    end
+})
+
+VisualsTab:Divider()
+
+-- --- Sacred Ship Resizer ---
+VisualsTab:Slider({
+    Title = "Ship Scale Multiplier",
+    Desc = "Scales your ship size up to 20x with heartbeat anti-reversion",
+    Width = 200,
+    Value = { Min = 1, Max = 20, Default = 1 },
+    Step = 1,
+    Callback = function(val)
+        local mod = getVisualsMod("modules/visuals/ship_resizer.lua")
+        if mod then mod.setShipSize(tonumber(val) or 1) end
+    end
+})
+
+VisualsTab:Button({
+    Title = "Reset Ship Size (1x)",
+    Desc = "Returns ship scale back to default dimensions",
+    Callback = function()
+        local mod = getVisualsMod("modules/visuals/ship_resizer.lua")
+        if mod then
+            mod.resetShipSize()
+            WindUI:Notify({
+                Title = "Ship Resizer",
+                Content = "Ship size restored to default (1x).",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+VisualsTab:Divider()
+
+-- --- Shaders & Skybox Environment ---
+VisualsTab:Toggle({
+    Title = "RTX Shaders",
+    Desc = "High-fidelity Bloom, ColorCorrection, and atmospheric lighting filters",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/shaders_skybox.lua")
+        if mod then mod.setShaders(state) end
+    end
+})
+
+VisualsTab:Dropdown({
+    Title = "RTX Preset",
+    Values = { "RTX ULTRA", "RTX REFLECT", "REALISTIC", "CINEMATIC", "VIBRANT", "SUNSET", "NIGHT", "GOLDEN" },
+    Value = "RTX ULTRA",
+    Callback = function(selected)
+        local mod = getVisualsMod("modules/visuals/shaders_skybox.lua")
+        if mod then mod.setShaders(mod.ShadersEnabled, selected) end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Custom Skybox",
+    Desc = "Replaces default sky with high-resolution space, nebula, or fantasy skybox",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/shaders_skybox.lua")
+        if mod then mod.setSkybox(state) end
+    end
+})
+
+VisualsTab:Dropdown({
+    Title = "Skybox Selection",
+    Values = {
+        "Galaxy", "Purple Night", "Blue Space", "Flaming Sunset", "Nebula",
+        "Evening Glow", "Sci-Fi Stars", "Pink Cloud", "Space Nebula",
+        "Red Planet", "Arctic Dawn", "Deep Void", "Cloudscape", "Dark Space"
+    },
+    Value = "Galaxy",
+    Callback = function(selected)
+        local mod = getVisualsMod("modules/visuals/shaders_skybox.lua")
+        if mod then mod.setSkybox(mod.SkyboxEnabled, selected) end
+    end
+})
+
+VisualsTab:Divider()
+
+-- --- External & Special Mod Engines ---
+VisualsTab:Button({
+    Title = "Launch Delta UI",
+    Desc = "Executes the embedded Delta Android touch executor interface",
+    Callback = function()
+        pcall(function()
+            local code = readLocalModule("modules/special/delta_ui.lua")
+            if not code then
+                code = universalHttpGet(RepoBase .. "modules/special/delta_ui.lua")
+            end
+            if code then
+                local fn, err = loadstring(code)
+                if fn then
+                    task.spawn(fn)
+                    WindUI:Notify({
+                        Title = "Delta UI",
+                        Content = "Delta touch executor interface launched successfully.",
+                        Duration = 4,
+                        Icon = darlingIcon
+                    })
+                else
+                    warn("[Darling Hub] Failed to parse Delta UI: " .. tostring(err))
+                end
+            end
+        end)
+    end
+})
+
+VisualsTab:Button({
+    Title = "Summon Celestial Titan (Transcendence 1000X)",
+    Desc = "Triggers the 34-second cinematic masterpiece cutscene and permanent celestial companion",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            WindUI:Notify({
+                Title = "Transcendence",
+                Content = "Summoning Celestial Titan Dragon...",
+                Duration = 4,
+                Icon = darlingIcon
+            })
+            mod.play()
+        end
     end
 })
 

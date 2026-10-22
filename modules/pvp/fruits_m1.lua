@@ -129,8 +129,8 @@ function FruitsM1.enable()
     if not FruitsM1.Widget and FloatingWidget then
         FruitsM1.Widget = FloatingWidget.create({
             Id = "FruitsM1Widget",
-            Title = "Kitsune Fruit M1",
-            Subtitle = "Burst Fire",
+            Label = "M1",
+            Type = "Toggle",
             Default = true,
             Position = UDim2.new(0.35, 0, 0.40, 0),
             AccentColor = Color3.fromRGB(249, 115, 22),
@@ -152,6 +152,7 @@ function FruitsM1.disable()
     FruitsM1.Enabled = false
     if FruitsM1.Widget then
         FruitsM1.Widget:Set(false, true)
+        FruitsM1.Widget:SetVisible(false)
     end
 end
 

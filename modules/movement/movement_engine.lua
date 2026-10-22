@@ -122,8 +122,8 @@ function MovementEngine.startFly()
     if not MovementEngine.FlyWidget and FloatingWidget then
         MovementEngine.FlyWidget = FloatingWidget.create({
             Id = "FlyWidget",
-            Title = "Flight Mode",
-            Subtitle = "Speed [" .. tostring(MovementEngine.FlySpeed) .. "]",
+            Label = "FLY",
+            Type = "Toggle",
             Default = true,
             Position = UDim2.new(0.35, 0, 0.46, 0),
             AccentColor = Color3.fromRGB(168, 85, 247),
@@ -294,22 +294,20 @@ function MovementEngine.setSuperJump(state, power)
         if not MovementEngine.SuperJumpWidget and FloatingWidget then
             MovementEngine.SuperJumpWidget = FloatingWidget.create({
                 Id = "SuperJumpWidget",
-                Title = "Super Jump",
-                Subtitle = "Power [" .. tostring(MovementEngine.SuperJumpPower) .. "]",
-                Default = true,
+                Label = "JUMP",
+                Type = "Action",
                 Position = UDim2.new(0.35, 0, 0.52, 0),
                 AccentColor = Color3.fromRGB(34, 197, 94),
-                Callback = function(s)
-                    MovementEngine.setSuperJump(s)
+                Callback = function()
+                    MovementEngine.doSuperJump()
                 end
             })
         elseif MovementEngine.SuperJumpWidget then
-            MovementEngine.SuperJumpWidget:Set(true, true)
             MovementEngine.SuperJumpWidget:SetVisible(true)
         end
     else
         if MovementEngine.SuperJumpWidget then
-            MovementEngine.SuperJumpWidget:Set(false, true)
+            MovementEngine.SuperJumpWidget:SetVisible(false)
         end
     end
 end

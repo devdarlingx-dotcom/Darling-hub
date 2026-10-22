@@ -184,8 +184,8 @@ function FastAttack.enable()
     if not FastAttack.Widget and FloatingWidget then
         FastAttack.Widget = FloatingWidget.create({
             Id = "FastAttackFruitsWidget",
-            Title = "Fast Attack (Fruits Too)",
-            Subtitle = "Burst [RCtrl]",
+            Label = "ATK",
+            Type = "Toggle",
             Default = true,
             Position = UDim2.new(0.35, 0, 0.34, 0),
             AccentColor = Color3.fromRGB(34, 197, 94),
@@ -215,6 +215,7 @@ function FastAttack.disable()
     table.clear(FastAttack.ToolConnections)
     if FastAttack.Widget then
         FastAttack.Widget:Set(false, true)
+        FastAttack.Widget:SetVisible(false)
     end
 end
 

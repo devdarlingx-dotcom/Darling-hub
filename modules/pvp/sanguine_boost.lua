@@ -1,6 +1,7 @@
 --[[
-    Darling Hub - Sanguine Z Boost Module
+    Darling Hub - Sanguine Z Boost Module (Dragon Fire)
     Applies a powerful linear velocity launch in camera look direction on Z skill activation.
+    Features a compact one-tap mobile action button with cooldown feedback.
 ]]--
 
 local Players = game:GetService("Players")
@@ -21,6 +22,7 @@ local SanguineBoost = {
     BoostDuration = 0.9,
     Cooldown = 0.35,
     LastBoost = 0,
+    Keybind = Enum.KeyCode.Z,
     Widget = nil,
     Connection = nil,
 }
@@ -60,37 +62,38 @@ function SanguineBoost.doBoost()
 end
 
 function SanguineBoost.enable()
-    if SanguineBoost.Enabled then return end
+    if SanguineBoost.Enabled then
+        if SanguineBoost.Widget then SanguineBoost.Widget:SetVisible(true) end
+        return
+    end
     SanguineBoost.Enabled = true
 
     if not SanguineBoost.Connection then
         SanguineBoost.Connection = UserInputService.InputBegan:Connect(function(input, gpe)
             if gpe then return end
             if not SanguineBoost.Enabled then return end
-            if input.KeyCode == Enum.KeyCode.Z then
-                SanguineBoost.doBoost()
+            if input.KeyCode == SanguineBoost.Keybind then
+                if SanguineBoost.Widget then
+                    SanguineBoost.Widget:TriggerAction()
+                else
+                    SanguineBoost.doBoost()
+                end
             end
         end)
     end
 
     if not SanguineBoost.Widget and FloatingWidget then
         SanguineBoost.Widget = FloatingWidget.create({
-            Id = "SanguineZBoostWidget",
-            Title = "Sanguine Z Boost",
-            Subtitle = "Burst Key [Z]",
-            Default = true,
+            Id = "SanguineZWidget",
+            Label = "Z",
+            Type = "Action",
             Position = UDim2.new(0.35, 0, 0.22, 0),
             AccentColor = Color3.fromRGB(192, 132, 252),
-            Callback = function(state)
-                if state then
-                    SanguineBoost.enable()
-                else
-                    SanguineBoost.disable()
-                end
+            Callback = function()
+                SanguineBoost.doBoost()
             end
         })
     elseif SanguineBoost.Widget then
-        SanguineBoost.Widget:Set(true, true)
         SanguineBoost.Widget:SetVisible(true)
     end
 end
@@ -102,7 +105,7 @@ function SanguineBoost.disable()
         SanguineBoost.Connection = nil
     end
     if SanguineBoost.Widget then
-        SanguineBoost.Widget:Set(false, true)
+        SanguineBoost.Widget:SetVisible(false)
     end
 end
 
@@ -116,7 +119,7 @@ function SanguineBoost.toggle()
 end
 
 function SanguineBoost.setFloatingVisible(visible)
-    if SanguineBoost.Widget then
+    if SanguineBoost.Widget and SanguineBoost.Enabled then
         SanguineBoost.Widget:SetVisible(visible)
     end
 end

@@ -1,6 +1,7 @@
 --[[
     Darling Hub - Ninja Dash Module (Kitsune Wild Assault)
     Zero-cooldown high-speed tactical zigzag dash with dynamic camera punch and physics impulse.
+    Features a compact one-tap mobile action button with instant dash execution.
 ]]--
 
 local Players = game:GetService("Players")
@@ -101,7 +102,10 @@ function NinjaDash.doDash()
 end
 
 function NinjaDash.enable()
-    if NinjaDash.Enabled then return end
+    if NinjaDash.Enabled then
+        if NinjaDash.Widget then NinjaDash.Widget:SetVisible(true) end
+        return
+    end
     NinjaDash.Enabled = true
 
     if not NinjaDash.InputConnection then
@@ -109,7 +113,11 @@ function NinjaDash.enable()
             if gpe then return end
             if not NinjaDash.Enabled then return end
             if input.KeyCode == NinjaDash.Keybind then
-                NinjaDash.doDash()
+                if NinjaDash.Widget then
+                    NinjaDash.Widget:TriggerAction()
+                else
+                    NinjaDash.doDash()
+                end
             end
         end)
     end
@@ -117,21 +125,15 @@ function NinjaDash.enable()
     if not NinjaDash.Widget and FloatingWidget then
         NinjaDash.Widget = FloatingWidget.create({
             Id = "NinjaDashWidget",
-            Title = "Ninja Dash",
-            Subtitle = "Burst Key [F]",
-            Default = true,
+            Label = "F",
+            Type = "Action",
             Position = UDim2.new(0.35, 0, 0.28, 0),
             AccentColor = Color3.fromRGB(244, 63, 94),
-            Callback = function(state)
-                if state then
-                    NinjaDash.enable()
-                else
-                    NinjaDash.disable()
-                end
+            Callback = function()
+                NinjaDash.doDash()
             end
         })
     elseif NinjaDash.Widget then
-        NinjaDash.Widget:Set(true, true)
         NinjaDash.Widget:SetVisible(true)
     end
 end
@@ -143,7 +145,7 @@ function NinjaDash.disable()
         NinjaDash.InputConnection = nil
     end
     if NinjaDash.Widget then
-        NinjaDash.Widget:Set(false, true)
+        NinjaDash.Widget:SetVisible(false)
     end
 end
 
@@ -157,7 +159,7 @@ function NinjaDash.toggle()
 end
 
 function NinjaDash.setFloatingVisible(visible)
-    if NinjaDash.Widget then
+    if NinjaDash.Widget and NinjaDash.Enabled then
         NinjaDash.Widget:SetVisible(visible)
     end
 end

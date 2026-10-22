@@ -242,8 +242,8 @@ function DragonGun.enable()
     if not DragonGun.Widget and FloatingWidget then
         DragonGun.Widget = FloatingWidget.create({
             Id = "DragonStormAuraWidget",
-            Title = "Dragon Storm Aura",
-            Subtitle = "Burst [G]",
+            Label = "GUN",
+            Type = "Toggle",
             Default = true,
             Position = UDim2.new(0.35, 0, 0.28, 0),
             AccentColor = Color3.fromRGB(245, 158, 11),
@@ -269,6 +269,7 @@ function DragonGun.disable()
     end
     if DragonGun.Widget then
         DragonGun.Widget:Set(false, true)
+        DragonGun.Widget:SetVisible(false)
     end
 end
 
