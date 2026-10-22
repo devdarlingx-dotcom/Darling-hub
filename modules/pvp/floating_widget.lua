@@ -1,8 +1,4 @@
---[[
-    Darling Hub - Compact Mobile & PC Floating Widget Component
-    Supports direct one-click action buttons (e.g. Sanguine Z, Ninja Dash, Super Jump)
-    and continuous toggle buttons (Fly, Soru TP, Fast Attack), with draggable locking.
-]]--
+-- floating widget
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")

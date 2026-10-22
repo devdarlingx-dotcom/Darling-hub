@@ -1,10 +1,4 @@
---[[
-    Darling Hub - Combat Core (Blox Fruits)
-    Combines Nameless Blacklist System with RJR Silent Aim Engine.
-    Default Aim Mode: 360 degrees.
-    Crash-free async rotation, hitscan sword moves (Buddy Sword X),
-    and dual-layer metatable hooks.
-]]--
+-- aimbot core
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -47,20 +41,20 @@ local Core = {
         Thickness = 1.5,
     },
 
-    -- Resolved Targets (RJR Engine)
+    -- resolved targets
     CurrentTargetPart = nil,
     CurrentTargetRawPosition = nil,
     CurrentTargetPosition = nil,
     CurrentTargetCharacter = nil,
     CurrentTargetIsPlayer = false,
 
-    -- Tool & Skill Tracking
+    -- tool & skill tracking
     CurrentTool = nil,
     CurrentToolCategory = "Melee",
     CurrentSkillKey = nil,
     LastSkillTime = 0,
 
-    -- Skill Blacklist (Nameless Engine)
+    -- skill blacklist
     BlacklistedKeys = {
         Melee = { Z = false, X = false, C = false },
         Sword = { Z = false, X = false },
@@ -68,7 +62,7 @@ local Core = {
         Gun   = { Z = false, X = false },
     },
 
-    -- Internal Hooks & Lifecycle
+    -- internal hooks & lifecycle
     IsHooked = false,
     RenderConnection = nil,
     CharConnections = {},
@@ -78,9 +72,7 @@ local Core = {
 
 local SKILL_KEYS = { "Z", "X", "C", "V", "F", "TAP" }
 
--- ============================================================================
--- TOOL CATEGORIZATION (NAMELESS)
--- ============================================================================
+-- tool categorization
 function Core.getToolCategory(tool)
     if not tool or not tool:IsA("Tool") then return "Melee" end
     pcall(function()
@@ -109,9 +101,7 @@ function Core.getToolCategory(tool)
     return "Sword"
 end
 
--- ============================================================================
--- BLACKLIST CHECKS (NAMELESS & DARLING HUB)
--- ============================================================================
+-- blacklist checks
 function Core.isKeyBlacklisted(category, key)
     if not key then return false end
     category = category or Core.CurrentToolCategory or "Melee"
@@ -281,9 +271,7 @@ function Core.predictPosition(targetPart)
     return targetPart.Position + (vel * factor)
 end
 
--- ============================================================================
--- TARGET SELECTION (RJR ENGINE WITH 360 DEFAULT)
--- ============================================================================
+-- target selection
 local function resolvePlayerTarget(lpHRP)
     if not lpHRP then return nil, nil, nil end
     Camera = Workspace.CurrentCamera or Camera
@@ -463,9 +451,7 @@ function Core.faceTarget(targetPos)
     end)
 end
 
--- ============================================================================
--- SKILL TRACKING (NAMELESS STYLE)
--- ============================================================================
+-- skill tracking
 function Core.setCurrentSkillKey(key)
     Core.CurrentSkillKey = key
     Core.LastSkillTime = os.clock()
@@ -495,9 +481,7 @@ local function getSkillKeyFromArgs(args)
     return nil
 end
 
--- ============================================================================
--- METATABLE HOOKS (RJR AIMBOT + NAMELESS INVOKESERVER REDIRECTION)
--- ============================================================================
+-- metatable hooks
 function Core.installHooks()
     if Core.IsHooked then return end
     Core.IsHooked = true
@@ -646,7 +630,7 @@ function Core.installHooks()
                                 end
                             end
 
-                            -- Nameless & RJR Buddy Sword X / Sword InvokeServer redirection
+                            -- sword invokeserver redirection
                             if method == "InvokeServer" and (type(args[1]) == "string" and table.find(SKILL_KEYS, args[1])) then
                                 args[2] = targetPos
                             end

@@ -1,8 +1,4 @@
---[[
-    Darling Hub - Tracers Module (Centered Origin)
-    Dual-layer line rendering starting strictly from screen center (Camera.ViewportSize / 2)
-    pointing directly to the enemy part. ScreenGui ensures 100% visibility on all mobile executors.
-]]--
+-- tracers
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")

@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Sacred Ship Painter Module
-    Allows detection, painting with solid vibrant colors or animated rainbow mode, and original color restoration.
-]]--
+-- ship painter
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")

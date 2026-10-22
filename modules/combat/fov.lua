@@ -1,8 +1,4 @@
---[[
-    Darling Hub - FOV Circle Module
-    Dual-layer rendering ensuring 100% visibility on all Mobile and PC executors.
-    ScreenGui is always maintained and visible; Drawing API updated concurrently if present.
-]]--
+-- fov
 
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")

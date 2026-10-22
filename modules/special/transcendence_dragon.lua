@@ -1,41 +1,4 @@
---[[
-    Masterclass v31: TRANSCENDENCE 1000X // THE ULTIMATE CELESTIAL TITAN CINEMA
-    Major Architectural Upgrades:
-    1. Act I (0.0s - 6.0s) - Macro-to-Wide Astrolabe Awakening:
-       - Initial macro close-up of Genesis Diamond prism facets whip-panning out to full 130-stud arena.
-       - 6 Radiant Laser Leylines shooting from the central diamond into the ground mandala.
-       - Dual gyroscopic counter-rotating starlight halos (+35 deg and -35 deg).
-       - Soft rolling circular ground mist (TEX_MIST) and starlight sparks (TEX_SPARK).
-    2. Act II (6.0s - 14.0s) - Colossal 130-Stud 5-Ray Celestial Star & Climbing Plasma Rings:
-       - 65.0-stud radius (130-stud diameter) colossal pentagram star with reinforced laser chords.
-       - Sequential energy pulse lighting up pentagram chords in star sequence (1->3->5->2->4->1).
-       - 5 Towering 36-stud Crystal Monoliths (MeshId = 9756362) with spinning diamond capstones.
-       - 5 Colossal Sky Rays (1600 studs tall) with climbing horizontal plasma rings racing to stratosphere.
-       - Inter-monolith ground lightning arcs crackling between star points.
-       - High-altitude aerial crane camera swooping to 130 studs height in 360-degree rotation.
-    3. Act III (14.0s - 21.0s) - Relativistic Singularity & Triple-Accretion Supernova:
-       - Inward relativistic singularity suction with desaturated chromatic tension drop.
-       - ZERO diamond models in center.
-       - TRIPLE 3D Gyroscopic Accretion Rings (72 Arc Segments across 3 tilted rotating axes: Horizontal, +38 deg, and -38 deg).
-       - 64 Colossal Radial Laser Needles (increased from 48 to 64).
-       - 48 Supersonic Flying 3D Diamond Shards tumbling into deep space.
-       - 600+ Starlight Sparks and 4-Point Glints.
-    4. Act IV (21.0s - 27.5s) - Dragon Hypersonic Re-Entry & Monumental Touchdown Flare:
-       - Hypersonic stratospheric dive with dual wingtip atmospheric re-entry plasma trails.
-       - 16 Diamond Star Escorts flying in aerodynamic delta formation.
-       - Ground deceleration flare at Y + 38.0 studs above player feet.
-       - Wing Downwash Ground Shockwave: Multi-layered mist shockwave (TEX_MIST), spark rings (TEX_SPARK), and diamond glints (TEX_GLINT) sweeping the ground beneath the dragon!
-       - Celestial roar & soaring helical column of diamond fire breath.
-       - Studio-grade head and chest illumination highlighting textured scales, claws, and wings.
-       - 6 Dorsal Celestial Crystal Spines along dragon back.
-    5. Act V (27.5s - 34.0s) - Double-Helix Guardian Ascension & Flawless Hand-Off:
-       - 12 Escort crystals execute an elegant double-helix DNA spiral ascent into the stratosphere.
-       - 4 Guardian crystals establish permanent orbital shield around the hovering titan.
-       - 360-degree hero orbit camera circling player and dragon.
-       - Natural lighting restoration and camera interpolation into player's third-person perspective over final 2.5s (0 abrupt cuts, 0 sudden pops!).
-       - Permanent companion active in Workspace.Destiny_DragonCompanion at Y + 38.0 studs.
-    6. Clean Standards: Zero branding text, zero letterbox bars, zero skip button, zero Destiny UI popup, clean ASCII, 0 emojis.
---]]
+-- transcendence dragon
 
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -168,7 +131,7 @@ playCinematicIntro = function(onComplete)
         if not PlayerGui then return end
         if not visible then
             for _, gui in ipairs(PlayerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "SpookyCinematicScreen" and not gui.Name:find("Chat") then
+                if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "DarlingCinematicScreen" and not gui.Name:find("Chat") then
                     table.insert(hiddenGuis, gui)
                     gui.Enabled = false
                 end
@@ -186,7 +149,7 @@ playCinematicIntro = function(onComplete)
 
     -- Fullscreen ScreenGui (Zero Letterbox, Zero Branding Text)
     local cinemaScreen = Instance.new("ScreenGui")
-    cinemaScreen.Name = "SpookyCinematicScreen"
+    cinemaScreen.Name = "DarlingCinematicScreen"
     cinemaScreen.ResetOnSpawn = false
     cinemaScreen.IgnoreGuiInset = true
     cinemaScreen.DisplayOrder = 999999
@@ -258,14 +221,14 @@ playCinematicIntro = function(onComplete)
 
     -- VFX Folder (Temporary Cutscene VFX)
     local vfxFolder = Instance.new("Folder")
-    vfxFolder.Name = "Spooky_TranscendenceVFX"
+    vfxFolder.Name = "Darling_TranscendenceVFX"
     vfxFolder.Parent = Workspace
 
     -- Permanent Companion Folder
-    local companionFolder = Workspace:FindFirstChild("Destiny_DragonCompanion")
+    local companionFolder = Workspace:FindFirstChild("Darling_DragonCompanion")
     if companionFolder then companionFolder:Destroy() end
     companionFolder = Instance.new("Folder")
-    companionFolder.Name = "Destiny_DragonCompanion"
+    companionFolder.Name = "Darling_DragonCompanion"
     companionFolder.Parent = Workspace
 
     -- Spatial Anchors
@@ -1847,10 +1810,10 @@ function Transcendence.spawnDirect()
     local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChildWhichIsA("BasePart")
     if not hrp then return end
 
-    local companionFolder = Workspace:FindFirstChild("Destiny_DragonCompanion")
+    local companionFolder = Workspace:FindFirstChild("Darling_DragonCompanion")
     if companionFolder then companionFolder:Destroy() end
     companionFolder = Instance.new("Folder")
-    companionFolder.Name = "Destiny_DragonCompanion"
+    companionFolder.Name = "Darling_DragonCompanion"
     companionFolder.Parent = Workspace
     Transcendence.DragonFolder = companionFolder
 
@@ -2015,6 +1978,50 @@ function Transcendence.startFlightController()
     local UserInputService = game:GetService("UserInputService")
     local RunService = game:GetService("RunService")
 
+    local function showDismountGui()
+        if Transcendence.DismountGui and Transcendence.DismountGui.Parent then return end
+        local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui") or game:GetService("CoreGui")
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "DarlingDragonDismountGui"
+        sg.ResetOnSpawn = false
+        sg.Parent = playerGui
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 160, 0, 38)
+        btn.Position = UDim2.new(0.5, -80, 0.85, 0)
+        btn.BackgroundColor3 = Color3.fromRGB(24, 20, 28)
+        btn.TextColor3 = Color3.fromRGB(255, 90, 120)
+        btn.Text = "Dismount Dragon"
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 13
+        btn.BorderSizePixel = 0
+        btn.AutoButtonColor = true
+        btn.Parent = sg
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = btn
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 60, 100)
+        stroke.Thickness = 1.2
+        stroke.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            Transcendence.dismount()
+        end)
+        Transcendence.DismountGui = sg
+    end
+
+    local function hideDismountGui()
+        if Transcendence.DismountGui and Transcendence.DismountGui.Parent then
+            pcall(function() Transcendence.DismountGui:Destroy() end)
+        end
+        Transcendence.DismountGui = nil
+    end
+
+    showDismountGui()
+
     Transcendence.FlightConn = RunService.RenderStepped:Connect(function(dt)
         if not Transcendence.IsRiding then return end
         local dragonBody = Transcendence.DragonBody
@@ -2026,7 +2033,8 @@ function Transcendence.startFlightController()
 
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if not hum or saddle.Occupant ~= hum then
+        local hrp = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+        if not char or not hum or not hrp or hum.Health <= 0 then
             Transcendence.dismount()
             return
         end
@@ -2074,9 +2082,11 @@ function Transcendence.startFlightController()
         dragonBody.CFrame = baseCF
         dragonBody.Transparency = 0.05
 
-        -- Keep character comfortably seated
+        -- Keep character comfortably seated and synchronized
         hum.PlatformStand = false
+        hum.Sit = true
         hum:ChangeState(Enum.HumanoidStateType.Seated)
+        hrp.CFrame = dragonBody.CFrame * CFrame.new(0, 3.8, -1.0)
 
         -- Spines & Crystals update
         local now = tick()
@@ -2105,20 +2115,31 @@ function Transcendence.mount()
     local char = LocalPlayer and LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local hrp = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
-    if not char or not hum or not hrp then return false end
+    if not char or not hum or not hrp or hum.Health <= 0 then return false end
 
     if not Transcendence.DragonBody or not Transcendence.DragonBody.Parent then
         Transcendence.spawnDirect()
         task.wait(0.2)
     end
 
+    local dragonBody = Transcendence.DragonBody
     local saddle = Transcendence.DragonSaddle
-    if not saddle or not saddle.Parent then return false end
+    if not dragonBody or not dragonBody.Parent or not saddle or not saddle.Parent then return false end
 
     Transcendence.IsRiding = true
-    hrp.CFrame = saddle.CFrame * CFrame.new(0, 1.5, 0)
+    hrp.CFrame = dragonBody.CFrame * CFrame.new(0, 3.8, -1.0)
     task.wait(0.05)
-    saddle:Sit(hum)
+    pcall(function() saddle:Sit(hum) end)
+
+    if Transcendence.RiderWeld and Transcendence.RiderWeld.Parent then
+        pcall(function() Transcendence.RiderWeld:Destroy() end)
+    end
+    local riderWeld = Instance.new("WeldConstraint")
+    riderWeld.Name = "DarlingDragonRiderWeld"
+    riderWeld.Part0 = dragonBody
+    riderWeld.Part1 = hrp
+    riderWeld.Parent = hrp
+    Transcendence.RiderWeld = riderWeld
 
     Transcendence.startFlightController()
     return true
@@ -2130,6 +2151,16 @@ function Transcendence.dismount()
         pcall(function() Transcendence.FlightConn:Disconnect() end)
         Transcendence.FlightConn = nil
     end
+
+    if Transcendence.RiderWeld and Transcendence.RiderWeld.Parent then
+        pcall(function() Transcendence.RiderWeld:Destroy() end)
+    end
+    Transcendence.RiderWeld = nil
+
+    if Transcendence.DismountGui and Transcendence.DismountGui.Parent then
+        pcall(function() Transcendence.DismountGui:Destroy() end)
+    end
+    Transcendence.DismountGui = nil
 
     local char = LocalPlayer and LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")

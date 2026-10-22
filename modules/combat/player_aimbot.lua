@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Player Aimbot Module
-    Dedicated module for Player Silent Aim, hitboxes, priority, and modes.
-]]--
+-- player aimbot
 
 local Players = game:GetService("Players")
 

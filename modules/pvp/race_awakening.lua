@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Race Awakening & Anti Stun Engine
-    Provides automatic Race V3 activation, Race V4 awakening, and hostile stun clearing.
-]]--
+-- race awakening
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

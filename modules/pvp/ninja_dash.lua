@@ -1,8 +1,4 @@
---[[
-    Darling Hub - Ninja Dash Module (Kitsune Wild Assault)
-    Zero-cooldown high-speed tactical zigzag dash with dynamic camera punch and physics impulse.
-    Features a compact one-tap mobile action button with instant dash execution.
-]]--
+-- ninja dash
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")

@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Fast Attack (Fruits & Weapons) Module
-    High-speed multi-target attack burst for Melee, Swords, and Demon Fruits.
-]]--
+-- fast attack
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")

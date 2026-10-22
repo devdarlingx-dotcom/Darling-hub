@@ -1,8 +1,4 @@
---[[
-    Darling Hub - Player List & Management Module
-    WindUI-native aesthetic: translucent glass cards, full-body skin previews,
-    reworked luxury health indicator, individual aimbot blacklist, and spectate mode.
-]]--
+-- player list
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")

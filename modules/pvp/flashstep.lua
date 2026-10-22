@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Flashstep & Soru TP Aimbot Module
-    Enforces infinite Flashstep cooldown and provides precision Soru teleport aimbot up to 2000 studs.
-]]--
+-- flashstep
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")

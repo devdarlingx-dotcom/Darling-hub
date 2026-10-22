@@ -1,8 +1,4 @@
---[[
-    Darling Hub - Sanguine Z Boost Module (Dragon Fire)
-    Applies a powerful linear velocity launch in camera look direction on Z skill activation.
-    Features a compact one-tap mobile action button with cooldown feedback.
-]]--
+-- sanguine boost
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")

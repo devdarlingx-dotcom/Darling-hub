@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Sacred Ship Resizer Module
-    Dynamically scales the player's ship between 1x and 20x using ScaleTo with anti-reversion loop.
-]]--
+-- ship resizer
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")

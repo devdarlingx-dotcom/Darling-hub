@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Client Tweaks & Performance Utility
-    FFlags 1 FPS Booster, No Animations Bugfix, and Anti Lava Immunity.
-]]--
+-- client tweaks
 
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")

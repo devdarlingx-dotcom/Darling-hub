@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Dragon Storm Aura Module (Ultra Gun M1 Burst)
-    Rapid fire Gun M1 targeting nearby players, mobs, and sea events.
-]]--
+-- dragon gun
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

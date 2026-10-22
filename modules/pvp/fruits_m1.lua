@@ -1,7 +1,4 @@
---[[
-    Darling Hub - One Shot Kitsune & Demon Fruit M1 Burst Module
-    High-vector projectile attack and rapid M1 clicker for Demon Fruits.
-]]--
+-- fruits m1
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

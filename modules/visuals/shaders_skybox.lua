@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Shaders & Skybox Environment Module
-    High-fidelity RTX post-processing shaders and 14 ultra HD custom skybox environments.
-]]--
+-- shaders skybox
 
 local Lighting = game:GetService("Lighting")
 

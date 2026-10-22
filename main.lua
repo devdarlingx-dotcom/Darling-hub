@@ -2066,38 +2066,333 @@ local SkinsTab = Window:Tab({
 })
 enhanceTabScrolling(SkinsTab)
 
+local SkinsMod = nil
+local function getSkinsMod()
+    if not SkinsMod then
+        SkinsMod = DarlingHub:Require("modules/visuals/skins_system.lua")
+    end
+    return SkinsMod
+end
+
+-- ------------------------------------------------------------------------
+-- SECTION 1: VFX & SKILL COLORS
+-- ------------------------------------------------------------------------
+SkinsTab:Paragraph({
+    Title = "VFX & Skill Colors",
+    Desc = "Recolor Blox Fruits combat effects, sword slashes, aura highlights, and ground particles",
+    Image = "sparkles"
+})
+
+SkinsTab:Toggle({
+    Title = "Darling VFX Engine",
+    Desc = "Master switch to dynamically recolor combat particles",
+    Value = false,
+    Callback = function(state)
+        local mod = getSkinsMod()
+        if mod then
+            mod.setVFXEnabled(state)
+            WindUI:Notify({
+                Title = "VFX Engine",
+                Content = state and "Darling VFX Enabled" or "Darling VFX Disabled",
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
 SkinsTab:Dropdown({
-    Title = "Cosmetic Skin Package",
+    Title = "VFX Color Preset",
     Values = {
-        "Darling Edition (Pink and Black)",
-        "Cyber Neon",
-        "Crimson Phantom",
-        "Royal Gold",
-        "Void Black"
+        "Darling Pink", "Purple", "Red", "Blue", "Cyan", "Green", "Gold",
+        "Magenta", "White", "Black", "Midnight", "Violet", "Lime", "Orange",
+        "Silver", "Crimson", "Yellow", "Teal", "Ice Blue"
     },
-    Default = "Darling Edition (Pink and Black)",
-    Callback = function(selected)
-        -- Skin logic
+    Default = "Darling Pink",
+    Callback = function(preset)
+        local mod = getSkinsMod()
+        if mod then
+            local col = mod.Presets[preset] or Color3.fromRGB(255, 105, 180)
+            mod.setVFXColor(col)
+            WindUI:Notify({
+                Title = "VFX Color",
+                Content = "VFX color set to " .. preset,
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SkinsTab:Toggle({
+    Title = "Affect Skills",
+    Desc = "Recolors fruit and fighting style particle emitters",
+    Value = true,
+    Callback = function(state)
+        local mod = getSkinsMod()
+        if mod then
+            mod.VFX.AffectSkills = state
+            if mod.VFX.Enabled then mod.refreshAllVFX() end
+        end
+    end
+})
+
+SkinsTab:Toggle({
+    Title = "Affect Swords",
+    Desc = "Recolors sword slash highlights and trails",
+    Value = true,
+    Callback = function(state)
+        local mod = getSkinsMod()
+        if mod then
+            mod.VFX.AffectSwords = state
+            if mod.VFX.Enabled then mod.refreshAllVFX() end
+        end
+    end
+})
+
+SkinsTab:Toggle({
+    Title = "Affect Transform",
+    Desc = "Recolors Buddha, Dragon, and V4 aura highlights",
+    Value = true,
+    Callback = function(state)
+        local mod = getSkinsMod()
+        if mod then
+            mod.VFX.AffectTransform = state
+            if mod.VFX.Enabled then mod.refreshAllVFX() end
+        end
+    end
+})
+
+SkinsTab:Toggle({
+    Title = "Affect Environment",
+    Desc = "Recolors world origin ground effects",
+    Value = false,
+    Callback = function(state)
+        local mod = getSkinsMod()
+        if mod then
+            mod.VFX.AffectEnvironment = state
+            if mod.VFX.Enabled then mod.refreshAllVFX() end
+        end
+    end
+})
+
+SkinsTab:Button({
+    Title = "Reset Original VFX",
+    Desc = "Restores all skill and combat particles back to default colors",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod then
+            mod.setVFXEnabled(false)
+            WindUI:Notify({
+                Title = "VFX Reset",
+                Content = "All particles restored to original colors",
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
     end
 })
 
 SkinsTab:Divider()
 
+-- ------------------------------------------------------------------------
+-- SECTION 2: TOOL SKINS & HOTBAR
+-- ------------------------------------------------------------------------
+SkinsTab:Paragraph({
+    Title = "Tool Skins & Hotbar",
+    Desc = "Custom cosmetics for Fruits, Swords, Guns, Melee and Hotbar icons",
+    Image = "swords"
+})
+
+local selectedCategory = "Fruits"
+local selectedSkinPreset = "Darling Signature"
+
+SkinsTab:Dropdown({
+    Title = "Equipment Category",
+    Values = { "Fruits", "Swords", "Guns", "Melee" },
+    Default = "Fruits",
+    Callback = function(cat)
+        selectedCategory = cat
+        local mod = getSkinsMod()
+        if mod then mod.Tools.SelectedCategory = cat end
+    end
+})
+
+SkinsTab:Dropdown({
+    Title = "Skin Preset Catalog",
+    Values = {
+        "Darling Signature", "Pure White", "Pure Amethyst", "Emerald Empress",
+        "Golden Sovereign", "Crimson Phantom", "Frost Diamond", "Cyber Neon",
+        "Midnight Shadow", "Blood Moon", "Electric Blue", "Solar Flare",
+        "Toxic Lime", "Void Purple", "Rose Quartz", "Galaxy Astral",
+        "Dark Matter", "Sakura Blossom", "Ice Void"
+    },
+    Default = "Darling Signature",
+    Callback = function(preset)
+        selectedSkinPreset = preset
+    end
+})
+
+SkinsTab:Input({
+    Title = "Custom Asset ID (Optional)",
+    Desc = "Override tool or hotbar icon with custom asset",
+    Placeholder = "e.g. rbxassetid://106579555405966",
+    Value = "",
+    Callback = function(val)
+        local mod = getSkinsMod()
+        if mod then mod.Tools.CustomAssetId = val or "" end
+    end
+})
+
+SkinsTab:Button({
+    Title = "Apply Skin to Category",
+    Desc = "Applies chosen skin to hotbar icon and held weapon mesh",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod then
+            mod.applyToolSkin(selectedCategory, selectedSkinPreset)
+            WindUI:Notify({
+                Title = selectedCategory .. " Skin",
+                Content = selectedSkinPreset .. " applied to " .. selectedCategory .. " and hotbar!",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SkinsTab:Button({
+    Title = "Reset Category Skin",
+    Desc = "Removes custom skin and restores default hotbar icon for selected category",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod then
+            mod.resetCategoryToolSkin(selectedCategory)
+            WindUI:Notify({
+                Title = selectedCategory .. " Skin",
+                Content = selectedCategory .. " skin reset to default",
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SkinsTab:Button({
+    Title = "Reset All Tool Skins",
+    Desc = "Restores all weapon skins and hotbar slots back to default",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod then
+            mod.resetAllToolSkins()
+            WindUI:Notify({
+                Title = "Skins Reset",
+                Content = "All categories and hotbar slots reset",
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SkinsTab:Divider()
+
+-- ------------------------------------------------------------------------
+-- SECTION 3: CHARACTER SKIN CHANGER
+-- ------------------------------------------------------------------------
+SkinsTab:Paragraph({
+    Title = "Character Skin Changer",
+    Desc = "Recolor character body parts, limb materials, and glowing particle auras",
+    Image = "user"
+})
+
+local selectedCharPreset = "Darling Pink"
+
 SkinsTab:Toggle({
-    Title = "Local Skin Changer",
-    Desc = "Applies custom visual textures and models on your client",
+    Title = "Enable Character Skin Changer",
+    Desc = "Overrides character body parts with chosen skin color and styling",
     Value = false,
     Callback = function(state)
-        -- Skin changer logic
+        local mod = getSkinsMod()
+        if mod then
+            if state then
+                mod.applyCharacterSkin(selectedCharPreset)
+                WindUI:Notify({
+                    Title = "Character Skin",
+                    Content = "Character skin applied (" .. selectedCharPreset .. ")",
+                    Duration = 2,
+                    Icon = darlingIcon
+                })
+            else
+                mod.resetCharacterSkin()
+                WindUI:Notify({
+                    Title = "Character Skin",
+                    Content = "Character appearance restored",
+                    Duration = 2,
+                    Icon = darlingIcon
+                })
+            end
+        end
+    end
+})
+
+SkinsTab:Dropdown({
+    Title = "Character Tone Preset",
+    Values = {
+        "Darling Pink", "White", "Black", "Gold", "Cyan",
+        "Crimson", "Green", "Purple", "Silver", "Orange"
+    },
+    Default = "Darling Pink",
+    Callback = function(preset)
+        selectedCharPreset = preset
+        local mod = getSkinsMod()
+        if mod and mod.Character.Enabled then
+            mod.applyCharacterSkin(preset)
+        end
+    end
+})
+
+SkinsTab:Dropdown({
+    Title = "Character Material",
+    Values = { "SmoothPlastic", "Neon", "ForceField", "Glass" },
+    Default = "SmoothPlastic",
+    Callback = function(matName)
+        local mod = getSkinsMod()
+        if mod then
+            mod.Character.Material = Enum.Material[matName] or Enum.Material.SmoothPlastic
+            if mod.Character.Enabled then
+                mod.applyCharacterSkin(selectedCharPreset)
+            end
+        end
     end
 })
 
 SkinsTab:Toggle({
-    Title = "Particle Aura",
-    Desc = "Generates stylized particle effects around your character",
+    Title = "Character Particle Aura",
+    Desc = "Generates a glowing aura highlight matching your active character skin",
     Value = false,
     Callback = function(state)
-        -- Particle aura logic
+        local mod = getSkinsMod()
+        if mod then
+            mod.setAuraEnabled(state)
+        end
+    end
+})
+
+SkinsTab:Button({
+    Title = "Reset Character Appearance",
+    Desc = "Restores your original character appearance and limb colors",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod then
+            mod.resetCharacterSkin()
+            WindUI:Notify({
+                Title = "Character Skin",
+                Content = "Character restored to original appearance",
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
     end
 })
 

@@ -1,7 +1,4 @@
---[[
-    Darling Hub - Advanced Movement & Physics Engine
-    WalkSpeed Bypass, Smooth Fly, Noclip, Dash Distance, Infinite Geppo Jump, Super Jump, and Walk on Water.
-]]--
+-- movement engine
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -248,9 +245,7 @@ function MovementEngine.setDashDistance(state, dist)
     end
 end
 
--- ========================================================================
--- 5. INFINITE AIR JUMP (COKEBOYS ENGINE)
--- ========================================================================
+-- infinite air jump
 function MovementEngine.doAirJump()
     local char = LocalPlayer.Character
     if not char then return end

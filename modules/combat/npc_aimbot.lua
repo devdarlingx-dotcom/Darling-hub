@@ -1,7 +1,4 @@
---[[
-    Darling Hub - NPC Aimbot Module
-    Dedicated module for NPC / Mob Silent Aim in Blox Fruits.
-]]--
+-- npc aimbot
 
 local NPCAimbot = {}
 local Core = nil

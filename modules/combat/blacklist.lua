@@ -1,8 +1,4 @@
---[[
-    Darling Hub - Skill Blacklist Module
-    Allows selective exclusion of skills from aimbot redirection.
-    Handles both array and map dropdown selections.
-]]--
+-- blacklist
 
 local Blacklist = {}
 local Core = nil

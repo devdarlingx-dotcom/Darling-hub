@@ -1,8 +1,4 @@
---[[
-    Darling Hub - Advanced PvP Player ESP & Multi-Tracers
-    High-performance Player ESP: 2D Quad Boxes, Health Bars, Names, Distance, Tool, Chams, and Multi-Tracers.
-    Features independent feature toggles and customizable white tracers.
-]]--
+-- esp
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
