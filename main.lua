@@ -2047,15 +2047,15 @@ SkinsTab:Toggle({
 SkinsTab:Dropdown({
     Title = "VFX Color Preset",
     Values = {
-        "Darling Pink", "Purple", "Red", "Blue", "Cyan", "Green", "Gold",
-        "Magenta", "White", "Black", "Midnight", "Violet", "Lime", "Orange",
-        "Silver", "Crimson", "Yellow", "Teal", "Ice Blue"
+        "Purple", "Red", "Blue", "Cyan", "Green", "Gold",
+        "Pink", "Magenta", "White", "Black", "Midnight", "Orange",
+        "Crimson", "Lime", "Silver", "Teal", "Ice Blue"
     },
-    Default = "Darling Pink",
+    Default = "Purple",
     Callback = function(preset)
         local mod = getSkinsMod()
         if mod then
-            local col = mod.Presets[preset] or Color3.fromRGB(255, 105, 180)
+            local col = mod.Presets[preset] or Color3.fromRGB(165, 80, 235)
             mod.setVFXColor(col)
             WindUI:Notify({
                 Title = "VFX Color",
@@ -2148,7 +2148,7 @@ SkinsTab:Paragraph({
 })
 
 local selectedCategory = "Fruits"
-local selectedSkinPreset = "Darling Signature"
+local selectedSkinPreset = "Purple"
 
 SkinsTab:Dropdown({
     Title = "Equipment Category",
@@ -2164,13 +2164,11 @@ SkinsTab:Dropdown({
 SkinsTab:Dropdown({
     Title = "Skin Preset Catalog",
     Values = {
-        "Darling Signature", "Pure White", "Pure Amethyst", "Emerald Empress",
-        "Golden Sovereign", "Crimson Phantom", "Frost Diamond", "Cyber Neon",
-        "Midnight Shadow", "Blood Moon", "Electric Blue", "Solar Flare",
-        "Toxic Lime", "Void Purple", "Rose Quartz", "Galaxy Astral",
-        "Dark Matter", "Sakura Blossom", "Ice Void"
+        "White", "Black", "Purple", "Red", "Blue", "Cyan",
+        "Green", "Gold", "Pink", "Orange", "Crimson", "Lime",
+        "Magenta", "Midnight", "Silver"
     },
-    Default = "Darling Signature",
+    Default = "Purple",
     Callback = function(preset)
         selectedSkinPreset = preset
     end
@@ -2430,65 +2428,69 @@ MusicTab:Paragraph({
 
 MusicTab:Button({
     Title = "Montagem Ceita (d_2fb943edb8ef)",
-    Desc = "Plays Montagem Ceita via DevMP3 bypass",
+    Desc = "Plays Montagem Ceita directly in background",
     Callback = function()
         WindUI:Notify({
-            Title = "DevMP3",
-            Content = "Loading Montagem Ceita...",
+            Title = "Music Player",
+            Content = "Playing Montagem Ceita...",
             Duration = 2.5,
             Icon = darlingIcon
         })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_2fb943edb8ef"))()
-        end)
+        local mod = getMusicMod()
+        if mod then
+            mod.playStream("d_2fb943edb8ef", "Montagem Ceita")
+        end
     end
 })
 
 MusicTab:Button({
     Title = "Montagem Fearless (d_afb0b4b1f348)",
-    Desc = "Plays Montagem Fearless via DevMP3 bypass",
+    Desc = "Plays Montagem Fearless directly in background",
     Callback = function()
         WindUI:Notify({
-            Title = "DevMP3",
-            Content = "Loading Montagem Fearless...",
+            Title = "Music Player",
+            Content = "Playing Montagem Fearless...",
             Duration = 2.5,
             Icon = darlingIcon
         })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_afb0b4b1f348"))()
-        end)
+        local mod = getMusicMod()
+        if mod then
+            mod.playStream("d_afb0b4b1f348", "Montagem Fearless")
+        end
     end
 })
 
 MusicTab:Button({
     Title = "Montagem Topaz (d_def47db76206)",
-    Desc = "Plays Montagem Topaz via DevMP3 bypass",
+    Desc = "Plays Montagem Topaz directly in background",
     Callback = function()
         WindUI:Notify({
-            Title = "DevMP3",
-            Content = "Loading Montagem Topaz...",
+            Title = "Music Player",
+            Content = "Playing Montagem Topaz...",
             Duration = 2.5,
             Icon = darlingIcon
         })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_def47db76206"))()
-        end)
+        local mod = getMusicMod()
+        if mod then
+            mod.playStream("d_def47db76206", "Montagem Topaz")
+        end
     end
 })
 
 MusicTab:Button({
     Title = "Spooky 3 (d_dbdeeddfb5e1)",
-    Desc = "Plays Spooky 3 via DevMP3 bypass",
+    Desc = "Plays Spooky 3 directly in background",
     Callback = function()
         WindUI:Notify({
-            Title = "DevMP3",
-            Content = "Loading Spooky 3...",
+            Title = "Music Player",
+            Content = "Playing Spooky 3...",
             Duration = 2.5,
             Icon = darlingIcon
         })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_dbdeeddfb5e1"))()
-        end)
+        local mod = getMusicMod()
+        if mod then
+            mod.playStream("d_dbdeeddfb5e1", "Spooky 3")
+        end
     end
 })
 
@@ -2679,7 +2681,7 @@ MusicTab:Divider()
 
 MusicTab:Paragraph({
     Title = "External Players",
-    Desc = "Aurora X Universal YouTube Player integration",
+    Desc = "Universal YouTube Player integration",
     Image = "sparkles"
 })
 

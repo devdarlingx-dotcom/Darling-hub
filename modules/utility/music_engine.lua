@@ -211,6 +211,40 @@ function DarlingMusic.launchYoutubePlayer()
     end)
 end
 
+-- play stream directly without opening external GUI
+function DarlingMusic.playStream(trackId, title)
+    title = title or ("Track #" .. tostring(trackId))
+    local BASE_URL = "https://darling-media-api.onrender.com"
+    local READ_KEY = "darling_secret_key"
+    local fname = "devmp3_" .. tostring(trackId) .. ".mp3"
+
+    local exIsFile = isfile or is_file
+    local exWriteFile = writefile
+    local exGetCustomAsset = getcustomasset
+
+    task.spawn(function()
+        if type(exIsFile) == "function" and type(exWriteFile) == "function" and not exIsFile(fname) then
+            local url = BASE_URL .. "/stream/" .. tostring(trackId) .. "?k=" .. READ_KEY
+            local ok, data = pcall(function() return game:HttpGet(url) end)
+            if ok and data and #data > 0 then
+                pcall(exWriteFile, fname, data)
+            end
+        end
+
+        if type(exGetCustomAsset) == "function" and type(exIsFile) == "function" and exIsFile(fname) then
+            local okAsset, asset = pcall(exGetCustomAsset, fname)
+            if okAsset and asset then
+                DarlingMusic.play(asset, title)
+                return
+            end
+        end
+
+        -- Direct fallback
+        DarlingMusic.play(BASE_URL .. "/stream/" .. tostring(trackId) .. "?k=" .. READ_KEY, title)
+    end)
+    return true, "Buffering: " .. title
+end
+
 -- launch devmp3 bypass loader
 function DarlingMusic.launchDevMp3()
     return pcall(function()

@@ -43,51 +43,64 @@ local DarlingSkins = {
 
 -- Color Presets Dictionary
 DarlingSkins.Presets = {
-    ["Darling Pink"] = Color3.fromRGB(255, 105, 180),
+    ["White"] = Color3.fromRGB(255, 255, 255),
+    ["Black"] = Color3.fromRGB(20, 20, 24),
     ["Purple"] = Color3.fromRGB(165, 80, 235),
-    ["Red"] = Color3.fromRGB(240, 40, 50),
+    ["Red"] = Color3.fromRGB(235, 45, 65),
     ["Blue"] = Color3.fromRGB(40, 120, 255),
-    ["Cyan"] = Color3.fromRGB(0, 240, 255),
+    ["Cyan"] = Color3.fromRGB(0, 220, 245),
     ["Green"] = Color3.fromRGB(50, 220, 120),
     ["Gold"] = Color3.fromRGB(245, 195, 45),
-    ["Magenta"] = Color3.fromRGB(255, 30, 140),
-    ["White"] = Color3.fromRGB(255, 255, 255),
-    ["Black"] = Color3.fromRGB(15, 15, 18),
-    ["Void Black"] = Color3.fromRGB(5, 5, 8),
-    ["Midnight"] = Color3.fromRGB(10, 12, 24),
-    ["Black & White"] = Color3.fromRGB(255, 255, 255),
-    ["Violet"] = Color3.fromRGB(110, 40, 190),
-    ["Lime"] = Color3.fromRGB(130, 255, 50),
+    ["Pink"] = Color3.fromRGB(255, 105, 180),
     ["Orange"] = Color3.fromRGB(255, 140, 30),
-    ["Silver"] = Color3.fromRGB(200, 205, 215),
     ["Crimson"] = Color3.fromRGB(180, 20, 35),
-    ["Yellow"] = Color3.fromRGB(255, 235, 60),
-    ["Teal"] = Color3.fromRGB(30, 190, 180),
-    ["Ice Blue"] = Color3.fromRGB(90, 215, 245),
+    ["Lime"] = Color3.fromRGB(130, 255, 50),
+    ["Magenta"] = Color3.fromRGB(255, 30, 140),
+    ["Midnight"] = Color3.fromRGB(35, 35, 48),
+    ["Silver"] = Color3.fromRGB(215, 225, 245),
+    ["Teal"] = Color3.fromRGB(0, 210, 190),
+    ["Ice Blue"] = Color3.fromRGB(160, 225, 255),
+    -- Backward compatibility aliases
+    ["Darling Pink"] = Color3.fromRGB(255, 105, 180),
+    ["Darling Signature"] = Color3.fromRGB(255, 105, 180),
+    ["Pure White"] = Color3.fromRGB(255, 255, 255),
+    ["Void Black"] = Color3.fromRGB(20, 20, 24),
+    ["Pure Amethyst"] = Color3.fromRGB(165, 80, 235),
+    ["Emerald Empress"] = Color3.fromRGB(50, 220, 120),
+    ["Golden Sovereign"] = Color3.fromRGB(245, 195, 45),
+    ["Crimson Phantom"] = Color3.fromRGB(235, 45, 65),
+    ["Frost Diamond"] = Color3.fromRGB(90, 215, 245),
+    ["Cyber Neon"] = Color3.fromRGB(255, 30, 140),
+    ["Midnight Shadow"] = Color3.fromRGB(45, 35, 55),
+    ["Blood Moon"] = Color3.fromRGB(180, 20, 35),
+    ["Electric Blue"] = Color3.fromRGB(40, 120, 255),
+    ["Solar Flare"] = Color3.fromRGB(255, 140, 30),
+    ["Toxic Lime"] = Color3.fromRGB(130, 255, 50),
+    ["Void Purple"] = Color3.fromRGB(110, 40, 190),
+    ["Rose Quartz"] = Color3.fromRGB(245, 130, 180),
+    ["Galaxy Astral"] = Color3.fromRGB(180, 100, 255),
+    ["Dark Matter"] = Color3.fromRGB(120, 50, 180),
+    ["Sakura Blossom"] = Color3.fromRGB(255, 130, 190),
+    ["Ice Void"] = Color3.fromRGB(80, 210, 240),
 }
 
--- Skin Catalog
+-- Skin Catalog (Clean, standard, accurate color names)
 DarlingSkins.SkinCatalog = {
-    { Name = "Darling Signature", Color = Color3.fromRGB(255, 105, 180) },
-    { Name = "Pure White", Color = Color3.fromRGB(255, 255, 255) },
-    { Name = "Void Black", Color = Color3.fromRGB(10, 10, 14) },
-    { Name = "Pure Amethyst", Color = Color3.fromRGB(165, 80, 235) },
-    { Name = "Emerald Empress", Color = Color3.fromRGB(50, 220, 120) },
-    { Name = "Golden Sovereign", Color = Color3.fromRGB(245, 195, 45) },
-    { Name = "Crimson Phantom", Color = Color3.fromRGB(235, 45, 65) },
-    { Name = "Frost Diamond", Color = Color3.fromRGB(90, 215, 245) },
-    { Name = "Cyber Neon", Color = Color3.fromRGB(255, 30, 140) },
-    { Name = "Midnight Shadow", Color = Color3.fromRGB(45, 35, 55) },
-    { Name = "Blood Moon", Color = Color3.fromRGB(180, 20, 35) },
-    { Name = "Electric Blue", Color = Color3.fromRGB(40, 120, 255) },
-    { Name = "Solar Flare", Color = Color3.fromRGB(255, 140, 30) },
-    { Name = "Toxic Lime", Color = Color3.fromRGB(130, 255, 50) },
-    { Name = "Void Purple", Color = Color3.fromRGB(110, 40, 190) },
-    { Name = "Rose Quartz", Color = Color3.fromRGB(245, 130, 180) },
-    { Name = "Galaxy Astral", Color = Color3.fromRGB(180, 100, 255) },
-    { Name = "Dark Matter", Color = Color3.fromRGB(120, 50, 180) },
-    { Name = "Sakura Blossom", Color = Color3.fromRGB(255, 130, 190) },
-    { Name = "Ice Void", Color = Color3.fromRGB(80, 210, 240) },
+    { Name = "White", Color = Color3.fromRGB(255, 255, 255) },
+    { Name = "Black", Color = Color3.fromRGB(20, 20, 24) },
+    { Name = "Purple", Color = Color3.fromRGB(165, 80, 235) },
+    { Name = "Red", Color = Color3.fromRGB(235, 45, 65) },
+    { Name = "Blue", Color = Color3.fromRGB(40, 120, 255) },
+    { Name = "Cyan", Color = Color3.fromRGB(0, 220, 245) },
+    { Name = "Green", Color = Color3.fromRGB(50, 220, 120) },
+    { Name = "Gold", Color = Color3.fromRGB(245, 195, 45) },
+    { Name = "Pink", Color = Color3.fromRGB(255, 105, 180) },
+    { Name = "Orange", Color = Color3.fromRGB(255, 140, 30) },
+    { Name = "Crimson", Color = Color3.fromRGB(180, 20, 35) },
+    { Name = "Lime", Color = Color3.fromRGB(130, 255, 50) },
+    { Name = "Magenta", Color = Color3.fromRGB(255, 30, 140) },
+    { Name = "Midnight", Color = Color3.fromRGB(35, 35, 48) },
+    { Name = "Silver", Color = Color3.fromRGB(215, 225, 245) },
 }
 
 DarlingSkins.CategoryTips = {
@@ -135,6 +148,12 @@ local function recordOriginal(inst, prop)
     end
 end
 
+local function isVisualObject(child)
+    return child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail")
+        or child:IsA("Highlight") or child:IsA("SpecialMesh") or child:IsA("Decal")
+        or child:IsA("Texture") or child:IsA("Light")
+end
+
 local function applyVisualColor(inst, targetColor)
     if not inst or not inst.Parent then return end
     targetColor = targetColor or DarlingSkins.VFX.ActiveColor
@@ -145,25 +164,19 @@ local function applyVisualColor(inst, targetColor)
         if inst:IsA("ParticleEmitter") then
             if not DarlingSkins.VFX.AffectSkills then return end
             recordOriginal(inst, "Color")
-            recordOriginal(inst, "LightEmission")
             local orig = (DarlingSkins.VFX.Originals[inst] and DarlingSkins.VFX.Originals[inst].Color) or inst.Color
             inst.Color = blendColorSequence(orig, targetColor)
-            if isDark then
-                inst.LightEmission = 0
-            elseif isWhite then
+            if isWhite then
+                recordOriginal(inst, "LightEmission")
                 inst.LightEmission = 1
-            else
-                inst.LightEmission = 0.25
             end
         elseif inst:IsA("Beam") or inst:IsA("Trail") then
             if not DarlingSkins.VFX.AffectSkills and not DarlingSkins.VFX.AffectSwords then return end
             recordOriginal(inst, "Color")
-            recordOriginal(inst, "LightEmission")
             local orig = (DarlingSkins.VFX.Originals[inst] and DarlingSkins.VFX.Originals[inst].Color) or inst.Color
             inst.Color = blendColorSequence(orig, targetColor)
-            if isDark then
-                inst.LightEmission = 0
-            elseif isWhite then
+            if isWhite then
+                recordOriginal(inst, "LightEmission")
                 inst.LightEmission = 1
             end
         elseif inst:IsA("Highlight") then
@@ -179,11 +192,20 @@ local function applyVisualColor(inst, targetColor)
         elseif inst:IsA("Decal") or inst:IsA("Texture") then
             if not DarlingSkins.VFX.AffectSkills then return end
             recordOriginal(inst, "Color3")
-            inst.Color3 = targetColor
+            local dCol = isDark and Color3.fromRGB(55, 55, 60) or targetColor
+            inst.Color3 = dCol
         elseif inst:IsA("SpecialMesh") then
             if not DarlingSkins.VFX.AffectSwords then return end
             recordOriginal(inst, "VertexColor")
-            inst.VertexColor = Vector3.new(targetColor.R, targetColor.G, targetColor.B)
+            if inst.TextureId ~= "" then
+                local minLum = 0.35
+                local vR = math.clamp(targetColor.R * 0.7 + (isDark and minLum or 0), 0.2, 1)
+                local vG = math.clamp(targetColor.G * 0.7 + (isDark and minLum or 0), 0.2, 1)
+                local vB = math.clamp(targetColor.B * 0.7 + (isDark and minLum or 0), 0.2, 1)
+                inst.VertexColor = Vector3.new(vR, vG, vB)
+            else
+                inst.VertexColor = Vector3.new(targetColor.R, targetColor.G, targetColor.B)
+            end
         end
     end)
 end
@@ -233,7 +255,9 @@ function DarlingSkins.startVFXWatchers()
         if not wo then return end
         table.insert(DarlingSkins.VFX.Connections, wo.DescendantAdded:Connect(function(child)
             if DarlingSkins.VFX.Enabled and (DarlingSkins.VFX.AffectEnvironment or DarlingSkins.VFX.AffectSkills or DarlingSkins.VFX.AffectSwords) then
-                task.defer(applyVisualColor, child, DarlingSkins.VFX.ActiveColor)
+                if isVisualObject(child) then
+                    task.defer(applyVisualColor, child, DarlingSkins.VFX.ActiveColor)
+                end
             end
         end))
     end
@@ -242,7 +266,9 @@ function DarlingSkins.startVFXWatchers()
         if not char then return end
         table.insert(DarlingSkins.VFX.Connections, char.DescendantAdded:Connect(function(child)
             if DarlingSkins.VFX.Enabled then
-                task.defer(applyVisualColor, child, DarlingSkins.VFX.ActiveColor)
+                if isVisualObject(child) then
+                    task.defer(applyVisualColor, child, DarlingSkins.VFX.ActiveColor)
+                end
             end
         end))
     end
@@ -269,7 +295,9 @@ function DarlingSkins.startVFXWatchers()
     if fx then
         table.insert(DarlingSkins.VFX.Connections, fx.DescendantAdded:Connect(function(child)
             if DarlingSkins.VFX.Enabled and DarlingSkins.VFX.AffectSkills then
-                task.defer(applyVisualColor, child, DarlingSkins.VFX.ActiveColor)
+                if isVisualObject(child) then
+                    task.defer(applyVisualColor, child, DarlingSkins.VFX.ActiveColor)
+                end
             end
         end))
     end
@@ -451,7 +479,23 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
         for _, tool in ipairs(tools) do
             for _, part in ipairs(tool:GetDescendants()) do
                 if part:IsA("SpecialMesh") then
-                    part.VertexColor = Vector3.new(skin.Color.R, skin.Color.G, skin.Color.B)
+                    if part.TextureId ~= "" then
+                        local minLum = 0.32
+                        local isDk = (skin.Color.R < 0.2 and skin.Color.G < 0.2 and skin.Color.B < 0.2)
+                        local vR = math.clamp(skin.Color.R * 0.7 + (isDk and minLum or 0), 0.15, 1)
+                        local vG = math.clamp(skin.Color.G * 0.7 + (isDk and minLum or 0), 0.15, 1)
+                        local vB = math.clamp(skin.Color.B * 0.7 + (isDk and minLum or 0), 0.15, 1)
+                        part.VertexColor = Vector3.new(vR, vG, vB)
+                    else
+                        part.VertexColor = Vector3.new(skin.Color.R, skin.Color.G, skin.Color.B)
+                    end
+                elseif part:IsA("MeshPart") then
+                    if part.TextureID ~= "" then
+                        local isDk = (skin.Color.R < 0.2 and skin.Color.G < 0.2 and skin.Color.B < 0.2)
+                        part.Color = isDk and Color3.fromRGB(80, 80, 90) or skin.Color
+                    else
+                        part.Color = skin.Color
+                    end
                 elseif part:IsA("BasePart") then
                     part.Color = skin.Color
                 end

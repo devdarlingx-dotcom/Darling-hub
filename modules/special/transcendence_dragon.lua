@@ -1921,9 +1921,12 @@ function Transcendence.spawnDirect()
             index = idx
         })
     end
-    Transcendence.DragonEscorts = dragonEscortCrystals
-
     -- Follow Loop
+    if Transcendence.CompanionConn then
+        pcall(function() Transcendence.CompanionConn:Disconnect() end)
+        Transcendence.CompanionConn = nil
+    end
+
     task.spawn(function()
         local companionConn = nil
         companionConn = RunService.Heartbeat:Connect(function()
@@ -1931,6 +1934,7 @@ function Transcendence.spawnDirect()
             local cHrp = cChar and (cChar:FindFirstChild("HumanoidRootPart") or cChar:FindFirstChild("Torso") or cChar:FindFirstChildWhichIsA("BasePart"))
             if not cHrp or not companionFolder or not companionFolder.Parent then
                 if companionConn then companionConn:Disconnect() end
+                Transcendence.CompanionConn = nil
                 return
             end
 
@@ -1966,6 +1970,7 @@ function Transcendence.spawnDirect()
                 end
             end
         end)
+        Transcendence.CompanionConn = companionConn
     end)
 end
 
@@ -2077,15 +2082,16 @@ function Transcendence.startFlightController()
             if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
         end
 
-        -- Vertical ascent and descent
+        -- Vertical ascent, descent, and sprint boost
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             moveDir = moveDir + Vector3.new(0, 1.2, 0)
         end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.E) then
             moveDir = moveDir - Vector3.new(0, 1.2, 0)
         end
 
-        local speed = 145
+        local isBoosting = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.Q)
+        local speed = isBoosting and 380 or 280
         local dtClamped = math.clamp(dt, 0.001, 0.05)
 
         if not Transcendence.FlightVelocity then
@@ -2097,9 +2103,9 @@ function Transcendence.startFlightController()
 
         if moveDir.Magnitude > 0.05 then
             local targetVel = moveDir.Unit * speed
-            Transcendence.FlightVelocity = Transcendence.FlightVelocity:Lerp(targetVel, dtClamped * 7)
+            Transcendence.FlightVelocity = Transcendence.FlightVelocity:Lerp(targetVel, math.clamp(dtClamped * 10, 0, 1))
         else
-            Transcendence.FlightVelocity = Transcendence.FlightVelocity:Lerp(Vector3.new(0, 0, 0), dtClamped * 6)
+            Transcendence.FlightVelocity = Transcendence.FlightVelocity:Lerp(Vector3.new(0, 0, 0), math.clamp(dtClamped * 7, 0, 1))
         end
 
         local vel = Transcendence.FlightVelocity
@@ -2113,20 +2119,24 @@ function Transcendence.startFlightController()
         else
             horizLook = dragonBody.CFrame.LookVector
         end
-        local clampedPitch = math.clamp(camLook.Y, -0.6, 0.6)
+        local clampedPitch = math.clamp(camLook.Y, -0.65, 0.65)
         local targetLookVec = (horizLook + Vector3.new(0, clampedPitch, 0)).Unit
 
         -- Banking based on turning speed
         local rgtDot = isMoving and (vel.Unit:Dot(camCF.RightVector)) or 0
-        local targetBank = -rgtDot * 0.35
-        Transcendence.FlightBank = math.clamp(Transcendence.FlightBank + (targetBank - Transcendence.FlightBank) * (dtClamped * 6), -0.5, 0.5)
+        local targetBank = -rgtDot * 0.4
+        Transcendence.FlightBank = math.clamp(Transcendence.FlightBank + (targetBank - Transcendence.FlightBank) * (dtClamped * 8), -0.5, 0.5)
 
-        -- Position calculation with gentle idle floating
+        -- Position calculation with gentle idle floating (applied directly, no Lerp damping!)
         local hoverDelta = (isMoving and 0 or (math.sin(tick() * 2) * 0.4 * dtClamped * 10))
         local nextPos = dragonBody.Position + (vel * dtClamped) + Vector3.new(0, hoverDelta, 0)
 
-        local targetCF = CFrame.lookAt(nextPos, nextPos + targetLookVec) * CFrame.Angles(0, 0, Transcendence.FlightBank)
-        local smoothDragonCF = dragonBody.CFrame:Lerp(targetCF, dtClamped * 8)
+        -- Smooth ROTATION only, preserving 100% of translational velocity
+        local currentRot = dragonBody.CFrame.Rotation
+        local targetRot = (CFrame.lookAt(Vector3.zero, targetLookVec) * CFrame.Angles(0, 0, Transcendence.FlightBank)).Rotation
+        local smoothRot = currentRot:Lerp(targetRot, math.clamp(dtClamped * 9, 0, 1))
+        local smoothDragonCF = CFrame.new(nextPos) * smoothRot
+
         dragonBody.CFrame = smoothDragonCF
         dragonBody.Transparency = 0.05
 
@@ -2194,6 +2204,11 @@ function Transcendence.mount()
     Transcendence.IsRiding = true
     Transcendence.setMountPromptVisible(false)
 
+    if Transcendence.CompanionConn then
+        pcall(function() Transcendence.CompanionConn:Disconnect() end)
+        Transcendence.CompanionConn = nil
+    end
+
     -- Free-floating rider state that actively replicates position to server
     hum.PlatformStand = true
     hum.AutoRotate = false
@@ -2228,6 +2243,11 @@ function Transcendence.dismount()
     end
     if hrp then
         pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
+    end
+
+    -- Resume companion follow loop
+    if Transcendence.DragonBody and Transcendence.DragonBody.Parent and char then
+        Transcendence.startFollowCompanion(char, Transcendence.DragonBody, Transcendence.DragonSpines or {}, Transcendence.DragonEscorts or {}, Transcendence.DragonFolder)
     end
 end
 
