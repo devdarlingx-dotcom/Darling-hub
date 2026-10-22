@@ -567,10 +567,19 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
         if DarlingSkins.Tools.Listeners[category] then
             pcall(function() DarlingSkins.Tools.Listeners[category]:Disconnect() end)
         end
-        DarlingSkins.Tools.Listeners[category] = img:GetPropertyChangedSignal("ImageColor3"):Connect(function()
+        local updatingCat = false
+        DarlingSkins.Tools.Listeners[category] = img:GetPropertyChangedSignal("Image"):Connect(function()
+            if updatingCat then return end
             local eq = DarlingSkins.Tools.EquippedSkins[category]
-            if eq and eq.Color and img.ImageColor3 ~= eq.Color then
-                img.ImageColor3 = eq.Color
+            if eq and eq.Color then
+                updatingCat = true
+                pcall(function()
+                    if DarlingSkins.Tools.CustomAssetId ~= "" and img.Image ~= DarlingSkins.Tools.CustomAssetId then
+                        img.Image = DarlingSkins.Tools.CustomAssetId
+                    end
+                    img.ImageColor3 = eq.Color
+                end)
+                updatingCat = false
             end
         end)
     end
@@ -663,11 +672,18 @@ function DarlingSkins.recolorAllHotbarSlots(skinName, customColor)
                     if DarlingSkins.Tools.AllSlotsListeners[img] then
                         pcall(function() DarlingSkins.Tools.AllSlotsListeners[img]:Disconnect() end)
                     end
-                    DarlingSkins.Tools.AllSlotsListeners[img] = img:GetPropertyChangedSignal("ImageColor3"):Connect(function()
+                    local updatingSlot = false
+                    DarlingSkins.Tools.AllSlotsListeners[img] = img:GetPropertyChangedSignal("Image"):Connect(function()
+                        if updatingSlot then return end
                         if DarlingSkins.Tools.GlobalSkin and DarlingSkins.Tools.GlobalSkin.Color then
-                            if img.ImageColor3 ~= DarlingSkins.Tools.GlobalSkin.Color then
+                            updatingSlot = true
+                            pcall(function()
+                                if DarlingSkins.Tools.CustomAssetId ~= "" and img.Image ~= DarlingSkins.Tools.CustomAssetId then
+                                    img.Image = DarlingSkins.Tools.CustomAssetId
+                                end
                                 img.ImageColor3 = DarlingSkins.Tools.GlobalSkin.Color
-                            end
+                            end)
+                            updatingSlot = false
                         end
                     end)
                     coloredCount = coloredCount + 1

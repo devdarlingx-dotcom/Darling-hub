@@ -1122,19 +1122,20 @@ playCinematicIntro = function(onComplete)
         -- PERMANENT DRAGON COMPANION BESIDE PLAYER (Y + 38.0 STUDS)
         task.spawn(function()
             local companionConn = nil
+            local lastPlayCompanionTick = 0
             companionConn = RunService.Heartbeat:Connect(function()
+                if Transcendence.IsRiding or Transcendence.IsHidden then return end
+
+                local now = tick()
+                if now - lastPlayCompanionTick < 0.033 then return end
+                lastPlayCompanionTick = now
+
                 local cChar = LocalPlayer and LocalPlayer.Character or char
                 local cHrp = cChar and (cChar:FindFirstChild("HumanoidRootPart") or cChar:FindFirstChild("Torso") or cChar:FindFirstChildWhichIsA("BasePart"))
                 if not cHrp or not companionFolder or not companionFolder.Parent then
                     if companionConn then companionConn:Disconnect() end
                     return
                 end
-
-                if Transcendence.IsRiding then
-                    return
-                end
-
-                local now = tick()
                 -- Elevated hover at Y + 38.0 studs above player feet!
                 local targetFollowPos = cHrp.Position + cHrp.CFrame.RightVector * 28 + cHrp.CFrame.LookVector * 8 + Vector3.new(0, 38.0 + math.sin(now * 2.2) * 1.8, 0)
                 local bodyPos = dragonBody.Position:Lerp(targetFollowPos, 0.08)
@@ -1929,7 +1930,14 @@ function Transcendence.spawnDirect()
 
     task.spawn(function()
         local companionConn = nil
+        local lastCompanionTick = 0
         companionConn = RunService.Heartbeat:Connect(function()
+            if Transcendence.IsRiding or Transcendence.IsHidden then return end
+
+            local now = tick()
+            if now - lastCompanionTick < 0.033 then return end
+            lastCompanionTick = now
+
             local cChar = LocalPlayer and LocalPlayer.Character or char
             local cHrp = cChar and (cChar:FindFirstChild("HumanoidRootPart") or cChar:FindFirstChild("Torso") or cChar:FindFirstChildWhichIsA("BasePart"))
             if not cHrp or not companionFolder or not companionFolder.Parent then
@@ -1937,10 +1945,6 @@ function Transcendence.spawnDirect()
                 Transcendence.CompanionConn = nil
                 return
             end
-
-            if Transcendence.IsRiding or Transcendence.IsHidden then return end
-
-            local now = tick()
             local targetFollowPos = cHrp.Position + cHrp.CFrame.RightVector * 28 + cHrp.CFrame.LookVector * 8 + Vector3.new(0, 38.0 + math.sin(now * 2.2) * 1.8, 0)
             local bodyPos = dragonBody.Position:Lerp(targetFollowPos, 0.08)
 

@@ -735,34 +735,46 @@ local function playVideoBackground(slotData)
         local startTime = tick()
 
         activeAnimTask = task.spawn(function()
+            local waitStep = math.clamp(1 / math.max(fps, 1), 0.033, 0.1)
             while true do
-                local elapsed = 0
-                if activeSound and activeSound.IsPlaying then
-                    elapsed = activeSound.TimePosition
-                else
-                    elapsed = (tick() - startTime)
-                end
-
-                local target = math.clamp(math.floor(elapsed * fps) + 1, 1, n)
-                if target ~= lastTarget then
-                    lastTarget = target
-                    back.ZIndex = 6
-                    cur.ZIndex = 5
-                    cur, back = back, cur
-
-                    local nextIdx = (target % n) + 1
-                    local nextAsset = assets[nextIdx]
-                    if nextAsset and type(nextAsset) == "string" and #nextAsset > 0 then
-                        back.Image = nextAsset
+                local isUIVisible = true
+                pcall(function()
+                    if Window and Window.UIElements and Window.UIElements.Main then
+                        isUIVisible = Window.UIElements.Main.Visible
                     end
-                end
+                end)
 
-                if elapsed >= duration then
-                    startTime = tick()
-                    if activeSound then activeSound.TimePosition = 0 end
-                end
+                if not isUIVisible then
+                    task.wait(0.5)
+                else
+                    local elapsed = 0
+                    if activeSound and activeSound.IsPlaying then
+                        elapsed = activeSound.TimePosition
+                    else
+                        elapsed = (tick() - startTime)
+                    end
 
-                RunService.Heartbeat:Wait()
+                    local target = math.clamp(math.floor(elapsed * fps) + 1, 1, n)
+                    if target ~= lastTarget then
+                        lastTarget = target
+                        back.ZIndex = 6
+                        cur.ZIndex = 5
+                        cur, back = back, cur
+
+                        local nextIdx = (target % n) + 1
+                        local nextAsset = assets[nextIdx]
+                        if nextAsset and type(nextAsset) == "string" and #nextAsset > 0 then
+                            back.Image = nextAsset
+                        end
+                    end
+
+                    if elapsed >= duration then
+                        startTime = tick()
+                        if activeSound then activeSound.TimePosition = 0 end
+                    end
+
+                    task.wait(waitStep)
+                end
             end
         end)
     end)
@@ -870,16 +882,27 @@ local function playGifBackground(slotData)
         activeAnimTask = task.spawn(function()
             while true do
                 for i = 1, n do
-                    back.ZIndex = 6
-                    cur.ZIndex = 5
-                    cur, back = back, cur
+                    local isUIVisible = true
+                    pcall(function()
+                        if Window and Window.UIElements and Window.UIElements.Main then
+                            isUIVisible = Window.UIElements.Main.Visible
+                        end
+                    end)
 
-                    local nextIdx = (i % n) + 1
-                    local nextAsset = assets[nextIdx]
-                    if nextAsset and type(nextAsset) == "string" and #nextAsset > 0 then
-                        back.Image = nextAsset
+                    if not isUIVisible then
+                        task.wait(0.5)
+                    else
+                        back.ZIndex = 6
+                        cur.ZIndex = 5
+                        cur, back = back, cur
+
+                        local nextIdx = (i % n) + 1
+                        local nextAsset = assets[nextIdx]
+                        if nextAsset and type(nextAsset) == "string" and #nextAsset > 0 then
+                            back.Image = nextAsset
+                        end
+                        task.wait(delays[i] or 0.08)
                     end
-                    task.wait(delays[i])
                 end
             end
         end)
@@ -3490,13 +3513,12 @@ task.spawn(function()
     loadHubConfig()
 end)
 
--- Auto-apply default background (Dark Forest) on first launch
+-- Apply saved background if available
 task.spawn(function()
     task.wait(0.5)
-    if not lastEnteredBackgroundInput or lastEnteredBackgroundInput == "" then
-        lastEnteredBackgroundInput = "d_d54d5cfd6e07"
+    if lastEnteredBackgroundInput and lastEnteredBackgroundInput ~= "" and lastEnteredBackgroundInput ~= "d_d54d5cfd6e07" then
         pcall(function()
-            processAndApplyMediaInput("d_d54d5cfd6e07")
+            processAndApplyMediaInput(lastEnteredBackgroundInput)
         end)
     end
 end)
