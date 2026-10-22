@@ -59,6 +59,16 @@ local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "funct
 
 local function getOverlayGui()
     if overlayGui and overlayGui.Parent then return overlayGui end
+    local env = (getgenv and getgenv()) or _G
+    local hub = env.DarlingHub or _G.DarlingHub
+    if hub and hub.GetOverlay then
+        local ok, g = pcall(function() return hub:GetOverlay() end)
+        if ok and g then
+            overlayGui = g
+            return overlayGui
+        end
+    end
+
     local gui = Instance.new("ScreenGui")
     gui.Name = "DarlingHub_FOV_Overlay"
     gui.ResetOnSpawn = false
@@ -122,15 +132,6 @@ end
 local function onRender()
     if not isEnabled then return end
     local core = getCore()
-    local aimSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Aim)
-    local aimMode = (aimSettings and aimSettings.Mode) or (core and core.AimMode) or "FOV"
-
-    -- If Aim Mode is not "FOV", do not display FOV circle
-    if aimMode ~= "FOV" then
-        if guiFrame then guiFrame.Visible = false end
-        if drawingCircle then drawingCircle.Visible = false end
-        return
-    end
 
     local settings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.FOV)
         or (core and core.FOV)
@@ -150,42 +151,28 @@ local function onRender()
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
-    if hasDrawing then
-        -- Prefer Drawing API when supported
-        if guiFrame then guiFrame.Visible = false end
-        local dCircle = ensureDrawingCircle()
-        if dCircle then
-            dCircle.Position = center
-            dCircle.Radius = radius
-            dCircle.Color = color
-            dCircle.Thickness = thickness
-            dCircle.Visible = true
-        end
-    else
-        -- ScreenGui fallback for environments without Drawing API
-        if drawingCircle then drawingCircle.Visible = false end
-        local frame = ensureGuiCircle()
-        if frame and guiStroke then
-            frame.Position = UDim2.fromOffset(center.X, center.Y)
-            frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
-            guiStroke.Color = color
-            guiStroke.Thickness = thickness
-            frame.Visible = true
-        end
+    -- ScreenGui (Guaranteed visible across all PC and mobile executors)
+    local frame = ensureGuiCircle()
+    if frame and guiStroke then
+        frame.Position = UDim2.fromOffset(center.X, center.Y)
+        frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
+        guiStroke.Color = color
+        guiStroke.Thickness = thickness
+        frame.Visible = true
+    end
+
+    -- Keep drawing circle hidden to avoid duplicate outlines
+    if drawingCircle then
+        drawingCircle.Visible = false
     end
 end
 
 function FOV.enable()
     isEnabled = true
     local core = getCore()
-    if core then core.FOV.Visible = true end
+    if core and core.FOV then core.FOV.Visible = true end
 
-    if hasDrawing then
-        ensureDrawingCircle()
-        if guiFrame then guiFrame.Visible = false end
-    else
-        ensureGuiCircle()
-    end
+    ensureGuiCircle()
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)

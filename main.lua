@@ -102,6 +102,7 @@ local DarlingHub = {
             Priority = "Nearest",    -- "Nearest", "Low HP", "Looking At Me"
             Hitbox = "HumanoidRootPart",
             MaxRange = 1000,
+            TeamCheck = false,
             Prediction = true,
             PredictionAmount = 0.12,
         },
@@ -1183,6 +1184,19 @@ AimbotTab:Toggle({
     Desc = "Redirects skills towards mobs and bosses",
     Value = false,
     Callback = bindToggle("modules/combat/npc_aimbot.lua", "NPC Silent Aim")
+})
+
+AimbotTab:Toggle({
+    Title = "Team / Ally Check",
+    Desc = "Ignore allies and teammates (Marines vs Marines)",
+    Value = false,
+    Callback = function(state)
+        AimSettings.Aim.TeamCheck = state
+        local core = (_G.DarlingCombatCore) or (getgenv and getgenv().DarlingCombatCore)
+        if core then core.TeamCheck = state end
+        local playerAim = DarlingHub:Require("modules/combat/player_aimbot.lua")
+        if playerAim and playerAim.setTeamCheck then playerAim.setTeamCheck(state) end
+    end
 })
 
 AimbotTab:Dropdown({

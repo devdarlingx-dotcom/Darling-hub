@@ -67,6 +67,14 @@ function PlayerAimbot.setHitbox(part)
     local core = getCore()
     if core and type(part) == "string" then
         core.TargetHitbox = part
+        core.TargetPart = part
+    end
+end
+
+function PlayerAimbot.setTeamCheck(state)
+    local core = getCore()
+    if core then
+        core.TeamCheck = (state == true)
     end
 end
 

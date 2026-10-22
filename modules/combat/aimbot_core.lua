@@ -15,7 +15,7 @@ local Core = {
     -- Master Toggles
     PlayerAimEnabled = false,
     NPCAimEnabled = false,
-    TeamCheck = true,
+    TeamCheck = false,
 
     -- Settings (360 degrees default)
     AimMode = "360", -- "360", "FOV", "180"
@@ -140,10 +140,11 @@ end
 
 local function getEntityPart(char)
     if not char then return nil end
-    local prefPart = Core.TargetPart or "Head"
+    local hubSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Aim)
+    local prefPart = (hubSettings and hubSettings.Hitbox) or Core.TargetHitbox or Core.TargetPart or "HumanoidRootPart"
     return char:FindFirstChild(prefPart)
-        or char:FindFirstChild("UpperTorso")
         or char:FindFirstChild("HumanoidRootPart")
+        or char:FindFirstChild("UpperTorso")
         or char:FindFirstChild("Torso")
         or char:FindFirstChild("Head")
         or char:FindFirstChildWhichIsA("BasePart")
@@ -161,23 +162,37 @@ end
 -- TEAM & ALLY CHECKS (BLOX FRUITS SPECIFIC)
 -- ============================================================================
 local function isAlly(player)
-    if not player or not LocalPlayer then return false end
-    local myGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not myGui then return false end
-    local scrolling = myGui:FindFirstChild("Main")
-        and myGui.Main:FindFirstChild("Allies")
-        and myGui.Main.Allies:FindFirstChild("Container")
-        and myGui.Main.Allies.Container:FindFirstChild("Allies")
-        and myGui.Main.Allies.Container.Allies:FindFirstChild("ScrollingFrame")
+    if not player or not LocalPlayer or player == LocalPlayer then return false end
 
-    if scrolling then
-        for _, item in pairs(scrolling:GetDescendants()) do
-            if item:IsA("ImageButton") and item.Name == player.Name then
-                return true
+    -- 1. Crew check (Blox Fruits attribute or Data folder)
+    local myCrew = LocalPlayer:GetAttribute("Crew")
+    local targetCrew = player:GetAttribute("Crew")
+    if myCrew and targetCrew and myCrew ~= 0 and myCrew ~= "" and myCrew == targetCrew then
+        return true
+    end
+
+    -- 2. GUI confirmed ally check (only if explicitly accepted)
+    local ok, res = pcall(function()
+        local myGui = LocalPlayer:FindFirstChild("PlayerGui")
+        local main = myGui and myGui:FindFirstChild("Main")
+        local allies = main and main:FindFirstChild("Allies")
+        if allies and allies.Visible then
+            local container = allies:FindFirstChild("Container")
+            local alliesSection = container and container:FindFirstChild("Allies")
+            local scroll = alliesSection and alliesSection:FindFirstChild("ScrollingFrame")
+            if scroll then
+                local item = scroll:FindFirstChild(player.Name)
+                if item then
+                    local btn = item:FindFirstChildWhichIsA("TextButton") or item:FindFirstChildWhichIsA("ImageButton")
+                    if btn and (string.find(string.lower(tostring(btn.Text or "")), "break") or string.find(string.lower(tostring(btn.Text or "")), "leave")) then
+                        return true
+                    end
+                end
             end
         end
-    end
-    return false
+        return false
+    end)
+    return ok and res or false
 end
 
 local function isEnemy(targetPlayer)
@@ -281,11 +296,21 @@ local function resolvePlayerTarget(lpHRP)
     local aimMode = hubSettings.Mode or Core.AimMode or "360"
     local fovCenter = Core.getFOVCenter()
     local fovRadius = Core.getFOVRadius()
-
-    local closestPart = nil
-    local shortestDist = math.huge
-    local targetChar = nil
+    local priority = hubSettings.Priority or Core.TargetPriority or "Nearest"
     local myPos = lpHRP.Position
+
+    -- 1. Explicit selected player override (from Player List tab)
+    if Core.SelectedPlayer and Core.SelectedPlayer ~= LocalPlayer and Core.SelectedPlayer.Character and isAlive(Core.SelectedPlayer.Character) then
+        local part = getEntityPart(Core.SelectedPlayer.Character)
+        if part and (part.Position - myPos).Magnitude <= maxRange then
+            local predPos = Core.predictPosition(part)
+            return part, predPos, Core.SelectedPlayer.Character
+        end
+    end
+
+    local bestPart = nil
+    local bestScore = math.huge
+    local bestChar = nil
 
     for _, pl in ipairs(Players:GetPlayers()) do
         if pl ~= LocalPlayer and isEnemy(pl) and not Core.isPlayerBlacklisted(pl) and pl.Character and isAlive(pl.Character) then
@@ -293,28 +318,47 @@ local function resolvePlayerTarget(lpHRP)
             if part then
                 local worldDist = (part.Position - myPos).Magnitude
                 if worldDist <= maxRange then
+                    local allowed = false
+                    local distScore = worldDist
+
                     if aimMode == "FOV" then
                         local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                         if onScreen then
                             local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - fovCenter).Magnitude
-                            if screenDist <= fovRadius and screenDist < shortestDist then
-                                shortestDist = screenDist
-                                closestPart = part
-                                targetChar = pl.Character
+                            if screenDist <= fovRadius then
+                                allowed = true
+                                distScore = screenDist
                             end
                         end
                     elseif aimMode == "180" then
                         local dir = (part.Position - myPos).Unit
-                        if lpHRP.CFrame.LookVector:Dot(dir) >= 0 and worldDist < shortestDist then
-                            shortestDist = worldDist
-                            closestPart = part
-                            targetChar = pl.Character
+                        if lpHRP.CFrame.LookVector:Dot(dir) >= 0 then
+                            allowed = true
+                            distScore = worldDist
                         end
                     else -- "360" (DEFAULT)
-                        if worldDist < shortestDist then
-                            shortestDist = worldDist
-                            closestPart = part
-                            targetChar = pl.Character
+                        allowed = true
+                        distScore = worldDist
+                    end
+
+                    if allowed then
+                        local score = distScore
+                        if priority == "Low HP" then
+                            local hum = pl.Character:FindFirstChildOfClass("Humanoid")
+                            score = hum and hum.Health or distScore
+                        elseif priority == "Looking At Me" then
+                            local plHRP = getHRP(pl.Character)
+                            if plHRP then
+                                local toMe = (myPos - plHRP.Position).Unit
+                                local dot = plHRP.CFrame.LookVector:Dot(toMe)
+                                score = 1 - dot
+                            end
+                        end
+
+                        if score < bestScore then
+                            bestScore = score
+                            bestPart = part
+                            bestChar = pl.Character
                         end
                     end
                 end
@@ -322,9 +366,9 @@ local function resolvePlayerTarget(lpHRP)
         end
     end
 
-    if closestPart then
-        local predPos = Core.predictPosition(closestPart)
-        return closestPart, predPos, targetChar
+    if bestPart then
+        local predPos = Core.predictPosition(bestPart)
+        return bestPart, predPos, bestChar
     end
     return nil, nil, nil
 end
@@ -427,10 +471,15 @@ function Core.resolveAnyTarget()
     end
 
     if Core.NPCAimEnabled then
-        return resolveNPCTarget(lpHRP)
+        local nPart, nPos, nChar = resolveNPCTarget(lpHRP)
+        if nPart and nPos then return nPart, nPos, nChar end
+        return nil, nil, nil
     end
 
-    return nil, nil, nil
+    -- Fallback for Tracers when neither master aimbot toggle is active yet:
+    local pPart, pPos, pChar = resolvePlayerTarget(lpHRP)
+    if pPart and pPos then return pPart, pPos, pChar end
+    return resolveNPCTarget(lpHRP)
 end
 
 -- ============================================================================
@@ -686,10 +735,12 @@ local function updateTargetCycle()
 
     -- 1. Fast path: if current target is still valid and within interval, update lead prediction directly at native FPS
     if Core.CurrentTargetPart and isCurrentTargetValid(Core.CurrentTargetPart, Core.CurrentTargetCharacter, lpHRP, maxRange) then
-        if (now - lastTargetScanTick) < TARGET_SCAN_INTERVAL then
-            Core.CurrentTargetRawPosition = Core.CurrentTargetPart.Position
-            Core.CurrentTargetPosition = Core.predictPosition(Core.CurrentTargetPart)
-            return
+        if not (Core.PlayerAimEnabled and not Core.CurrentTargetIsPlayer) then
+            if (now - lastTargetScanTick) < TARGET_SCAN_INTERVAL then
+                Core.CurrentTargetRawPosition = Core.CurrentTargetPart.Position
+                Core.CurrentTargetPosition = Core.predictPosition(Core.CurrentTargetPart)
+                return
+            end
         end
     end
 

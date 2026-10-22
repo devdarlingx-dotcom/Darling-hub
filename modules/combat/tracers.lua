@@ -57,6 +57,16 @@ local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "funct
 
 local function getOverlayGui()
     if overlayGui and overlayGui.Parent then return overlayGui end
+    local env = (getgenv and getgenv()) or _G
+    local hub = env.DarlingHub or _G.DarlingHub
+    if hub and hub.GetOverlay then
+        local ok, g = pcall(function() return hub:GetOverlay() end)
+        if ok and g then
+            overlayGui = g
+            return overlayGui
+        end
+    end
+
     local gui = Instance.new("ScreenGui")
     gui.Name = "DarlingHub_Tracers_Overlay"
     gui.ResetOnSpawn = false
@@ -116,12 +126,16 @@ local function onRender()
     local camera = Workspace.CurrentCamera
     if not camera then return end
 
-    -- Strictly follow active aimbot target:
-    -- If Player Aim is enabled and no player is nearby, do NOT snap to NPCs!
+    -- Target resolution: active aimbot target, or nearest valid entity if available
     local targetPos = nil
-    if core and (core.PlayerAimEnabled or core.NPCAimEnabled) then
+    if core then
         if core.CurrentTargetPart then
             targetPos = core.CurrentTargetRawPosition or core.CurrentTargetPart.Position
+        elseif core.resolveAnyTarget then
+            local part = core.resolveAnyTarget()
+            if part then
+                targetPos = part.Position
+            end
         end
     end
 
@@ -144,46 +158,32 @@ local function onRender()
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
-    if hasDrawing then
-        -- Prefer Drawing API when supported
-        if guiLine then guiLine.Visible = false end
-        local dLine = ensureDrawingLine()
-        if dLine then
-            dLine.From = fromPos
-            dLine.To = toPos
-            dLine.Color = color
-            dLine.Thickness = thickness
-            dLine.Visible = true
-        end
-    else
-        -- ScreenGui fallback for environments without Drawing API
-        if drawingLine then drawingLine.Visible = false end
-        local line = ensureGuiLine()
-        if line then
-            local delta = toPos - fromPos
-            local distance = delta.Magnitude
-            local angle = math.atan2(delta.Y, delta.X)
+    -- ScreenGui Rotated Line (Guaranteed visible on mobile and PC)
+    local line = ensureGuiLine()
+    if line then
+        local delta = toPos - fromPos
+        local distance = delta.Magnitude
+        local angle = math.atan2(delta.Y, delta.X)
 
-            line.Size = UDim2.fromOffset(distance, thickness)
-            line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
-            line.Rotation = math.deg(angle)
-            line.BackgroundColor3 = color
-            line.Visible = true
-        end
+        line.Size = UDim2.fromOffset(distance, thickness)
+        line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
+        line.Rotation = math.deg(angle)
+        line.BackgroundColor3 = color
+        line.Visible = true
+    end
+
+    -- Keep drawing line hidden to avoid duplicate overlays
+    if drawingLine then
+        drawingLine.Visible = false
     end
 end
 
 function Tracers.enable()
     isEnabled = true
     local core = getCore()
-    if core then core.Tracers.Visible = true end
+    if core and core.Tracers then core.Tracers.Visible = true end
 
-    if hasDrawing then
-        ensureDrawingLine()
-        if guiLine then guiLine.Visible = false end
-    else
-        ensureGuiLine()
-    end
+    ensureGuiLine()
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)
