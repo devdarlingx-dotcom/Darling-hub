@@ -72,6 +72,7 @@ local function getOverlayGui()
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
     gui.DisplayOrder = 2147483000
+    pcall(function() gui.ScreenInsets = Enum.ScreenInsets.None end)
     if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
     local parented = false
     if gethui then parented = pcall(function() gui.Parent = gethui() end) end
@@ -126,14 +127,15 @@ local function onRender()
     local camera = Workspace.CurrentCamera
     if not camera then return end
 
-    -- Target resolution: active aimbot target, or nearest valid entity if available
+    -- Target resolution: frame-accurate live position of active target
     local targetPos = nil
     if core then
-        if core.CurrentTargetPart then
-            targetPos = core.CurrentTargetRawPosition or core.CurrentTargetPart.Position
+        local activePart = core.CurrentTargetPart
+        if activePart and activePart.Parent then
+            targetPos = activePart.Position
         elseif core.resolveAnyTarget then
             local part = core.resolveAnyTarget()
-            if part then
+            if part and part.Parent then
                 targetPos = part.Position
             end
         end
@@ -152,13 +154,16 @@ local function onRender()
         return
     end
 
-    -- Strictly from screen center
-    local fromPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-    local toPos = Vector2.new(screenPos.X, screenPos.Y)
+    local overlay = getOverlayGui()
+    local origin = (overlay and overlay.AbsolutePosition) or Vector2.zero
+
+    -- Fullscreen coordinates adjusted for device safe area / notch insets
+    local fromPos = Vector2.new(camera.ViewportSize.X / 2 - origin.X, camera.ViewportSize.Y / 2 - origin.Y)
+    local toPos = Vector2.new(screenPos.X - origin.X, screenPos.Y - origin.Y)
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
-    -- ScreenGui Rotated Line (Guaranteed visible on mobile and PC)
+    -- ScreenGui Rotated Line (Guaranteed visible and centered on mobile and PC)
     local line = ensureGuiLine()
     if line then
         local delta = toPos - fromPos

@@ -74,6 +74,7 @@ local function getOverlayGui()
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
     gui.DisplayOrder = 2147483000
+    pcall(function() gui.ScreenInsets = Enum.ScreenInsets.None end)
     if syn and syn.protect_gui then pcall(syn.protect_gui, gui) end
     local parented = false
     if gethui then parented = pcall(function() gui.Parent = gethui() end) end
@@ -129,10 +130,29 @@ local function ensureDrawingCircle()
     return nil
 end
 
+local function isFOVMode()
+    local env = (getgenv and getgenv()) or _G
+    local hub = env.DarlingHub or _G.DarlingHub
+    local aimSettings = hub and hub.Settings and hub.Settings.Aim
+    local mode = (aimSettings and aimSettings.Mode)
+    if not mode then
+        local core = getCore()
+        mode = (core and core.AimMode)
+    end
+    return mode == "FOV"
+end
+
 local function onRender()
     if not isEnabled then return end
-    local core = getCore()
 
+    -- Strictly display FOV circle only when Aim Mode is "FOV"
+    if not isFOVMode() then
+        if guiFrame then guiFrame.Visible = false end
+        if drawingCircle then drawingCircle.Visible = false end
+        return
+    end
+
+    local core = getCore()
     local settings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.FOV)
         or (core and core.FOV)
         or { Radius = 100, Mode = "Center", Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5 }
@@ -151,10 +171,13 @@ local function onRender()
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
-    -- ScreenGui (Guaranteed visible across all PC and mobile executors)
+    -- ScreenGui (Guaranteed visible across all PC and mobile executors, notch-compensated)
+    local overlay = getOverlayGui()
+    local origin = (overlay and overlay.AbsolutePosition) or Vector2.zero
+
     local frame = ensureGuiCircle()
     if frame and guiStroke then
-        frame.Position = UDim2.fromOffset(center.X, center.Y)
+        frame.Position = UDim2.fromOffset(center.X - origin.X, center.Y - origin.Y)
         frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
         guiStroke.Color = color
         guiStroke.Thickness = thickness

@@ -140,13 +140,35 @@ local function getMusicEngine()
     return nil
 end
 
+local throneMusicEndedConn = nil
+local isDownloadingThroneMusic = false
+
+local function stopThroneMusic()
+    pcall(function()
+        if throneMusicEndedConn then
+            pcall(function() throneMusicEndedConn:Disconnect() end)
+            throneMusicEndedConn = nil
+        end
+        local snd = Workspace:FindFirstChild("DarlingThroneMusic")
+        if snd then
+            pcall(function() snd:Stop() end)
+            pcall(function() snd:Destroy() end)
+        end
+        local dm = getMusicEngine()
+        if dm and dm.stop then
+            pcall(dm.stop)
+        end
+        local ss = game:GetService("SoundService")
+        local ssSnd = ss and ss:FindFirstChild("DarlingMusicPlayer")
+        if ssSnd then
+            pcall(function() ssSnd:Stop() end)
+        end
+    end)
+end
+
 local function playThroneMusic()
     pcall(function()
-        local dm = getMusicEngine()
-        if dm and dm.playStream then
-            dm.playStream(MONTAGEM_TOPAZ_ID, "Montagem Topaz")
-            return
-        end
+        stopThroneMusic()
 
         local exIsFile = isfile or is_file
         local exWriteFile = writefile
@@ -155,19 +177,44 @@ local function playThroneMusic()
         local url = "https://darling-media-api.onrender.com/stream/" .. MONTAGEM_TOPAZ_ID .. "?k=darling_secret_key"
 
         task.spawn(function()
-            if type(exIsFile) == "function" and type(exWriteFile) == "function" and not exIsFile(fname) then
+            local fileExists = false
+            if type(exIsFile) == "function" then
+                pcall(function() fileExists = exIsFile(fname) end)
+            end
+
+            -- Download safely only once without freezing threads or saturating wifi
+            if not fileExists and type(exWriteFile) == "function" then
+                if isDownloadingThroneMusic then return end
+                isDownloadingThroneMusic = true
                 local ok, data = pcall(function() return game:HttpGet(url) end)
+                isDownloadingThroneMusic = false
                 if ok and data and #data > 0 then
                     pcall(exWriteFile, fname, data)
+                    fileExists = true
                 end
             end
 
             local soundSource = nil
-            if type(exGetCustomAsset) == "function" and type(exIsFile) == "function" and exIsFile(fname) then
+            if fileExists and type(exGetCustomAsset) == "function" then
                 local okAsset, asset = pcall(exGetCustomAsset, fname)
                 if okAsset and asset then
                     soundSource = asset
                 end
+            end
+
+            local dm = getMusicEngine()
+            if dm and dm.play and soundSource then
+                dm.Looped = false
+                dm.play(soundSource, "Montagem Topaz")
+                local snd = dm.getSound and dm.getSound()
+                if snd then
+                    snd.Looped = false
+                    if throneMusicEndedConn then pcall(function() throneMusicEndedConn:Disconnect() end) end
+                    throneMusicEndedConn = snd.Ended:Connect(function()
+                        stopThroneMusic()
+                    end)
+                end
+                return
             end
 
             if not soundSource then
@@ -179,26 +226,17 @@ local function playThroneMusic()
                 snd = Instance.new("Sound")
                 snd.Name = "DarlingThroneMusic"
                 snd.Volume = 0.8
-                snd.Looped = true
+                snd.Looped = false
                 snd.Parent = Workspace
             end
             snd.SoundId = soundSource
+            snd.Looped = false
+            if throneMusicEndedConn then pcall(function() throneMusicEndedConn:Disconnect() end) end
+            throneMusicEndedConn = snd.Ended:Connect(function()
+                stopThroneMusic()
+            end)
             pcall(function() snd:Play() end)
         end)
-    end)
-end
-
-local function stopThroneMusic()
-    pcall(function()
-        local snd = Workspace:FindFirstChild("DarlingThroneMusic")
-        if snd then
-            snd:Stop()
-            snd:Destroy()
-        end
-        local dm = getMusicEngine()
-        if dm and dm.stop then
-            dm.stop()
-        end
     end)
 end
 
@@ -1637,6 +1675,8 @@ function KingsThrone.dismount()
             hrp.CFrame = hrp.CFrame * CFrame.new(0, 1.5, -8.0)
         end
     end)
+
+    stopThroneMusic()
 end
 
 -- Completely Dismiss and Despawn King's Throne
