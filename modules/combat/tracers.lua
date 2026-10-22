@@ -144,22 +144,9 @@ local function onRender()
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
-    -- ScreenGui Rotated Line (Guaranteed visible on mobile and PC)
-    local line = ensureGuiLine()
-    if line then
-        local delta = toPos - fromPos
-        local distance = delta.Magnitude
-        local angle = math.atan2(delta.Y, delta.X)
-
-        line.Size = UDim2.fromOffset(distance, thickness)
-        line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
-        line.Rotation = math.deg(angle)
-        line.BackgroundColor3 = color
-        line.Visible = true
-    end
-
-    -- Drawing API Line (synced if supported)
     if hasDrawing then
+        -- Prefer Drawing API when supported
+        if guiLine then guiLine.Visible = false end
         local dLine = ensureDrawingLine()
         if dLine then
             dLine.From = fromPos
@@ -167,6 +154,21 @@ local function onRender()
             dLine.Color = color
             dLine.Thickness = thickness
             dLine.Visible = true
+        end
+    else
+        -- ScreenGui fallback for environments without Drawing API
+        if drawingLine then drawingLine.Visible = false end
+        local line = ensureGuiLine()
+        if line then
+            local delta = toPos - fromPos
+            local distance = delta.Magnitude
+            local angle = math.atan2(delta.Y, delta.X)
+
+            line.Size = UDim2.fromOffset(distance, thickness)
+            line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
+            line.Rotation = math.deg(angle)
+            line.BackgroundColor3 = color
+            line.Visible = true
         end
     end
 end
@@ -176,8 +178,12 @@ function Tracers.enable()
     local core = getCore()
     if core then core.Tracers.Visible = true end
 
-    ensureGuiLine()
-    if hasDrawing then ensureDrawingLine() end
+    if hasDrawing then
+        ensureDrawingLine()
+        if guiLine then guiLine.Visible = false end
+    else
+        ensureGuiLine()
+    end
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)

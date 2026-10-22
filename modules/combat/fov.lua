@@ -150,18 +150,9 @@ local function onRender()
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 
-    -- ScreenGui (Guaranteed visibility across all mobile and PC executors)
-    local frame = ensureGuiCircle()
-    if frame and guiStroke then
-        frame.Position = UDim2.fromOffset(center.X, center.Y)
-        frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
-        guiStroke.Color = color
-        guiStroke.Thickness = thickness
-        frame.Visible = true
-    end
-
-    -- Drawing API Circle (synced if supported)
     if hasDrawing then
+        -- Prefer Drawing API when supported
+        if guiFrame then guiFrame.Visible = false end
         local dCircle = ensureDrawingCircle()
         if dCircle then
             dCircle.Position = center
@@ -169,6 +160,17 @@ local function onRender()
             dCircle.Color = color
             dCircle.Thickness = thickness
             dCircle.Visible = true
+        end
+    else
+        -- ScreenGui fallback for environments without Drawing API
+        if drawingCircle then drawingCircle.Visible = false end
+        local frame = ensureGuiCircle()
+        if frame and guiStroke then
+            frame.Position = UDim2.fromOffset(center.X, center.Y)
+            frame.Size = UDim2.fromOffset(radius * 2, radius * 2)
+            guiStroke.Color = color
+            guiStroke.Thickness = thickness
+            frame.Visible = true
         end
     end
 end
@@ -178,8 +180,12 @@ function FOV.enable()
     local core = getCore()
     if core then core.FOV.Visible = true end
 
-    ensureGuiCircle()
-    if hasDrawing then ensureDrawingCircle() end
+    if hasDrawing then
+        ensureDrawingCircle()
+        if guiFrame then guiFrame.Visible = false end
+    else
+        ensureGuiCircle()
+    end
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)

@@ -2743,6 +2743,14 @@ MusicTab:Button({
 })
 
 
+local currentLanguage = "English"
+local Translations
+local function tr(key)
+    if not Translations then return key end
+    local l = Translations[currentLanguage] or Translations["English"]
+    return (l and l[key]) or (Translations["English"] and Translations["English"][key]) or key
+end
+
 -- ========================================================================
 -- 8. SUMMON DRAGON TAB
 -- ========================================================================
@@ -2853,6 +2861,92 @@ SummonDragonTab:Button({
     end
 })
 
+SummonDragonTab:Divider()
+
+-- --- King's Throne (Cosmic Sovereign Chariot & Montagem Topaz) ---
+SummonDragonTab:Paragraph({
+    Title = "King's Throne",
+    Desc = "Summon, mount, and fly the cosmic Sovereign Throne with Montagem Topaz",
+    Image = "crown"
+})
+
+SummonDragonTab:Button({
+    Title = "Mount King's Throne (Cosmic Chariot)",
+    Desc = "Spawns and seats you on the King's Throne with 3D flight controls and Montagem Topaz",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/kings_throne.lua")
+        if mod then
+            local ok = mod.mount()
+            if ok then
+                WindUI:Notify({
+                    Title = tr("KingsThrone"),
+                    Content = tr("ThroneMounted"),
+                    Duration = 4,
+                    Icon = darlingIcon
+                })
+            else
+                WindUI:Notify({
+                    Title = tr("KingsThrone"),
+                    Content = tr("ThroneMountFailed"),
+                    Duration = 3,
+                    Icon = "alert-triangle"
+                })
+            end
+        end
+    end
+})
+
+SummonDragonTab:Button({
+    Title = "Dismount King's Throne",
+    Desc = "Safely steps down from the King's Throne back onto the ground",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/kings_throne.lua")
+        if mod then
+            mod.dismount()
+            WindUI:Notify({
+                Title = tr("KingsThrone"),
+                Content = tr("ThroneDismounted"),
+                Duration = 3,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SummonDragonTab:Button({
+    Title = "Dismiss King's Throne",
+    Desc = "Completely removes and despawns the King's Throne and stops music",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/kings_throne.lua")
+        if mod then
+            mod.dismiss()
+            WindUI:Notify({
+                Title = tr("KingsThrone"),
+                Content = tr("ThroneDismissed"),
+                Duration = 3,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SummonDragonTab:Button({
+    Title = "King's Throne Cinematic Arrival",
+    Desc = "Spawns the King's Throne with the dramatic Heaven-Splitter ray and Montagem Topaz",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/kings_throne.lua")
+        if mod then
+            WindUI:Notify({
+                Title = tr("KingsThrone"),
+                Content = tr("ThroneSummoning"),
+                Duration = 4,
+                Icon = darlingIcon
+            })
+            mod.playCinematic()
+        end
+    end
+})
+
 -- ========================================================================
 -- 9. PERSONALIZATION TAB
 -- ========================================================================
@@ -2895,11 +2989,15 @@ if #availableThemes == 0 then
     availableThemes = { "Dark", "Darling", "Rose", "Purple", "Midnight", "Emerald", "Crimson", "Violet", "Sky", "Light" }
 end
 
-PersonalizationTab:Dropdown({
+local currentSelectedTheme = "Dark"
+local ThemeDropdown = nil
+
+ThemeDropdown = PersonalizationTab:Dropdown({
     Title = "UI Color Theme",
     Values = availableThemes,
     Default = "Dark",
     Callback = function(themeName)
+        currentSelectedTheme = themeName
         pcall(function()
             WindUI:SetTheme(themeName)
             WindUI:Notify({
@@ -2909,6 +3007,9 @@ PersonalizationTab:Dropdown({
                 Icon = "palette"
             })
         end)
+        if autoSaveConfig and saveHubConfig then
+            saveHubConfig()
+        end
     end
 })
 
@@ -3156,9 +3257,9 @@ PersonalizationTab:Toggle({
 -- 10. SETTINGS TAB (SAVE CONFIG & MULTI-LANGUAGE)
 -- ========================================================================
 local SupportedLanguages = { "English", "Español", "Français", "Tiếng Việt", "Português" }
-local currentLanguage = "English"
+currentLanguage = currentLanguage or "English"
 
-local Translations = {
+Translations = {
     ["English"] = {
         ConfigSaved = "Configuration saved successfully to darling_hub/config.json",
         ConfigLoaded = "Configuration loaded successfully.",
@@ -3171,6 +3272,21 @@ local Translations = {
         LoadConfig = "Load Configuration",
         AutoSave = "Auto-Save Configuration",
         Language = "Interface Language",
+        KingsThrone = "King's Throne",
+        KingsThroneDesc = "Summon, mount, and fly the cosmic Sovereign Throne with Montagem Topaz",
+        MountKingsThrone = "Mount King's Throne (Cosmic Chariot)",
+        MountKingsThroneDesc = "Spawns and seats you on the King's Throne with 3D flight controls and Montagem Topaz",
+        DismountKingsThrone = "Dismount King's Throne",
+        DismountKingsThroneDesc = "Safely steps down from the King's Throne back onto the ground",
+        DismissKingsThrone = "Dismiss King's Throne",
+        DismissKingsThroneDesc = "Completely removes and despawns the King's Throne and stops music",
+        KingsThroneCinematic = "King's Throne Cinematic Arrival",
+        KingsThroneCinematicDesc = "Spawns the King's Throne with the dramatic Heaven-Splitter ray and Montagem Topaz",
+        ThroneMounted = "Mounted King's Throne! Flying with Montagem Topaz.",
+        ThroneMountFailed = "Failed to mount King's Throne. Try again.",
+        ThroneDismounted = "Dismounted King's Throne successfully.",
+        ThroneDismissed = "King's Throne dismissed successfully.",
+        ThroneSummoning = "Summoning King's Throne with Heaven-Splitter Ray...",
     },
     ["Español"] = {
         ConfigSaved = "Configuracion guardada correctamente en darling_hub/config.json",
@@ -3184,6 +3300,21 @@ local Translations = {
         LoadConfig = "Cargar Configuracion",
         AutoSave = "Autoguardar Configuracion",
         Language = "Idioma de la interfaz",
+        KingsThrone = "Trono del Rey",
+        KingsThroneDesc = "Invoca, montate y vuela en el Trono Soberano cosmico con Montagem Topaz",
+        MountKingsThrone = "Montar Trono del Rey (Carruaje Cosmico)",
+        MountKingsThroneDesc = "Te sienta en el Trono del Rey con controles de vuelo 3D y Montagem Topaz",
+        DismountKingsThrone = "Bajarse del Trono del Rey",
+        DismountKingsThroneDesc = "Desciende de forma segura del Trono del Rey al suelo",
+        DismissKingsThrone = "Quitar Trono del Rey",
+        DismissKingsThroneDesc = "Elimina por completo el Trono del Rey y detiene la musica",
+        KingsThroneCinematic = "Llegada Cinematica del Trono",
+        KingsThroneCinematicDesc = "Invoca el Trono del Rey con el rayo Heaven-Splitter y Montagem Topaz",
+        ThroneMounted = "Trono del Rey montado! Volando con Montagem Topaz.",
+        ThroneMountFailed = "Error al montar el Trono del Rey. Intentalo de nuevo.",
+        ThroneDismounted = "Te has bajado del Trono del Rey correctamente.",
+        ThroneDismissed = "Trono del Rey quitado correctamente.",
+        ThroneSummoning = "Invocando Trono del Rey con el rayo Heaven-Splitter...",
     },
     ["Français"] = {
         ConfigSaved = "Configuration enregistree avec succes dans darling_hub/config.json",
@@ -3197,6 +3328,21 @@ local Translations = {
         LoadConfig = "Charger la configuration",
         AutoSave = "Sauvegarde automatique",
         Language = "Langue de l'interface",
+        KingsThrone = "Trone du Roi",
+        KingsThroneDesc = "Invoquez, montez et volez sur le Trone Souverain cosmique avec Montagem Topaz",
+        MountKingsThrone = "Monter sur le Trone du Roi (Char Cosmique)",
+        MountKingsThroneDesc = "Vous installe sur le Trone du Roi avec commandes de vol 3D et Montagem Topaz",
+        DismountKingsThrone = "Descendre du Trone du Roi",
+        DismountKingsThroneDesc = "Descend en toute securite du Trone du Roi sur le sol",
+        DismissKingsThrone = "Renvoyer le Trone du Roi",
+        DismissKingsThroneDesc = "Supprime completement le Trone du Roi et arrete la musique",
+        KingsThroneCinematic = "Arrivee Cinematique du Trone",
+        KingsThroneCinematicDesc = "Invoque le Trone du Roi avec le rayon Heaven-Splitter et Montagem Topaz",
+        ThroneMounted = "Monte sur le Trone du Roi! En vol avec Montagem Topaz.",
+        ThroneMountFailed = "Impossible de monter sur le Trone du Roi. Reessayez.",
+        ThroneDismounted = "Descendu du Trone du Roi avec succes.",
+        ThroneDismissed = "Trone du Roi renvoye avec succes.",
+        ThroneSummoning = "Invocation du Trone du Roi avec le rayon Heaven-Splitter...",
     },
     ["Tiếng Việt"] = {
         ConfigSaved = "Cau hinh da luu thanh cong vao darling_hub/config.json",
@@ -3210,6 +3356,21 @@ local Translations = {
         LoadConfig = "Tai cau hinh",
         AutoSave = "Tu dong luu cau hinh",
         Language = "Ngon ngu giao dien",
+        KingsThrone = "Ngoi Bau Cua Vua",
+        KingsThroneDesc = "Trieu hoi, ngoi len va bay tren Ngoi Bau Vu Tru cung Montagem Topaz",
+        MountKingsThrone = "Ngoi Len Ngoi Bau (Co Xe Vu Tru)",
+        MountKingsThroneDesc = "Trieu hoi va dua ban len Ngoi Bau voi he thong bay 3D va Montagem Topaz",
+        DismountKingsThrone = "Roi Khoi Ngoi Bau",
+        DismountKingsThroneDesc = "Buoc xuong an toan tu Ngoi Bau tro ve mat dat",
+        DismissKingsThrone = "Xoa Ngoi Bau",
+        DismissKingsThroneDesc = "Xoa hoan toan Ngoi Bau Cua Vua va dung am nhac",
+        KingsThroneCinematic = "Trieu Hoi Dien Anh Ngoi Bau",
+        KingsThroneCinematicDesc = "Trieu hoi Ngoi Bau cung tia sang Heaven-Splitter va Montagem Topaz",
+        ThroneMounted = "Da len Ngoi Bau Cua Vua! Bay cung Montagem Topaz.",
+        ThroneMountFailed = "Khong the len Ngoi Bau. Vui long thu lai.",
+        ThroneDismounted = "Roi khoi Ngoi Bau thanh cong.",
+        ThroneDismissed = "Da xoa Ngoi Bau Cua Vua thanh cong.",
+        ThroneSummoning = "Dang trieu hoi Ngoi Bau voi tia Heaven-Splitter...",
     },
     ["Português"] = {
         ConfigSaved = "Configuracao salva com sucesso em darling_hub/config.json",
@@ -3223,6 +3384,21 @@ local Translations = {
         LoadConfig = "Carregar Configuracao",
         AutoSave = "Salvar Automaticamente",
         Language = "Idioma da interface",
+        KingsThrone = "Trono do Rei",
+        KingsThroneDesc = "Invoque, monte e voe no Trono Soberano cosmico com Montagem Topaz",
+        MountKingsThrone = "Montar no Trono do Rei (Carruagem Cosmica)",
+        MountKingsThroneDesc = "Coloca voce no Trono do Rei com controles de voo 3D e Montagem Topaz",
+        DismountKingsThrone = "Descer do Trono do Rei",
+        DismountKingsThroneDesc = "Desce em seguranca do Trono do Rei de volta ao chao",
+        DismissKingsThrone = "Remover Trono do Rei",
+        DismissKingsThroneDesc = "Remove completamente o Trono do Rei e para a musica",
+        KingsThroneCinematic = "Chegada Cinematica do Trono",
+        KingsThroneCinematicDesc = "Invoca o Trono do Rei com o raio Heaven-Splitter e Montagem Topaz",
+        ThroneMounted = "Montado no Trono do Rei! Voando com Montagem Topaz.",
+        ThroneMountFailed = "Falha ao montar no Trono do Rei. Tente novamente.",
+        ThroneDismounted = "Desceu do Trono do Rei com sucesso.",
+        ThroneDismissed = "Trono do Rei removido com sucesso.",
+        ThroneSummoning = "Invocando Trono do Rei com o raio Heaven-Splitter...",
     }
 }
 
@@ -3247,7 +3423,7 @@ local TabTranslations = {
         Visuals = "Visuales",
         Skins = "Aspectos",
         Music = "Reproductor",
-        Dragon = "Summon Dragon",
+        Dragon = "Invocar Dragon",
         Personalization = "Personalizar",
         Settings = "Ajustes",
     },
@@ -3259,7 +3435,7 @@ local TabTranslations = {
         Visuals = "Visuels",
         Skins = "Apparences",
         Music = "Musique",
-        Dragon = "Summon Dragon",
+        Dragon = "Invoquer Dragon",
         Personalization = "Personnalisation",
         Settings = "Parametres",
     },
@@ -3271,7 +3447,7 @@ local TabTranslations = {
         Visuals = "Hinh Anh",
         Skins = "Giao Dien",
         Music = "Am Nhac",
-        Dragon = "Summon Dragon",
+        Dragon = "Trieu Hoi Rong",
         Personalization = "Tuy Chinh",
         Settings = "Cai Dat",
     },
@@ -3283,7 +3459,7 @@ local TabTranslations = {
         Visuals = "Visuais",
         Skins = "Trajes",
         Music = "Musica",
-        Dragon = "Summon Dragon",
+        Dragon = "Invocar Dragao",
         Personalization = "Personalizacao",
         Settings = "Configuracoes",
     }
@@ -3309,6 +3485,8 @@ local LanguageDropdown = nil
 local function applyLanguage(lang)
     if not Translations[lang] then return end
     currentLanguage = lang
+    if getgenv then pcall(function() getgenv().DarlingLanguage = lang end) end
+    if _G then pcall(function() _G.DarlingLanguage = lang end) end
     local tabTexts = TabTranslations[lang] or TabTranslations["English"]
 
     setTabLabel(HomeTab, tabTexts.Home)
@@ -3321,11 +3499,6 @@ local function applyLanguage(lang)
     setTabLabel(SummonDragonTab, tabTexts.Dragon)
     setTabLabel(PersonalizationTab, tabTexts.Personalization)
     setTabLabel(SettingsTab, tabTexts.Settings)
-end
-
-local function tr(key)
-    local l = Translations[currentLanguage] or Translations["English"]
-    return l[key] or Translations["English"][key] or key
 end
 
 local CONFIG_FOLDER = "darling_hub"
@@ -3347,7 +3520,7 @@ local function saveHubConfig()
         Language = currentLanguage,
         Keybind = currentToggleKey and currentToggleKey.Name or "F",
         AutoSave = autoSaveConfig,
-        Theme = currentSelectedTheme or "Darling",
+        Theme = currentSelectedTheme or "Dark",
         BackgroundMedia = lastEnteredBackgroundInput or "",
         BackgroundBlur = currentBgBlur or 0,
         BackgroundTransparency = currentBgTransparency or 0.15,
@@ -3426,7 +3599,11 @@ local function loadHubConfig()
             autoSaveConfig = data.AutoSave
         end
         if data.Theme and WindUI then
+            currentSelectedTheme = data.Theme
             pcall(function() WindUI:SetTheme(data.Theme) end)
+            if ThemeDropdown and ThemeDropdown.Select then
+                pcall(function() ThemeDropdown:Select(data.Theme) end)
+            end
         end
         if data.BackgroundMedia and data.BackgroundMedia ~= "" then
             lastEnteredBackgroundInput = data.BackgroundMedia
@@ -3575,6 +3752,11 @@ SettingsTab:Button({
         currentLanguage = "English"
         currentToggleKey = Enum.KeyCode.F
         autoSaveConfig = true
+        currentSelectedTheme = "Dark"
+        pcall(function() WindUI:SetTheme("Dark") end)
+        if ThemeDropdown and ThemeDropdown.Select then
+            pcall(function() ThemeDropdown:Select("Dark") end)
+        end
         pcall(function()
             if isfile and delfile then
                 if isfile(PRIMARY_CONFIG) then delfile(PRIMARY_CONFIG) end
