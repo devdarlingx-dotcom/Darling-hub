@@ -2419,56 +2419,85 @@ local function getMusicMod()
     return MusicMod
 end
 
-local selectedTrackName = "phonk"
-local selectedTrackId = "1843588265"
 local customMusicId = ""
 local customMusicName = ""
 
 MusicTab:Paragraph({
-    Title = "Darling Music Player",
-    Desc = "Soundtrack player with audio bypass, speed/pitch controls, and favorites",
+    Title = "Cloud DevMP3 Soundtracks",
+    Desc = "Permanent bypass audio streamer with custom phonk & montagem tracks",
     Image = "music"
 })
 
-MusicTab:Dropdown({
-    Title = "Soundtrack Selection",
-    Values = {
-        "phonk",
-        "Darling Theme - Lo-Fi Chill",
-        "Anime Vibes - Aesthetic Chill",
-        "Synthwave Night Drive",
-        "Combat Anthem"
-    },
-    Default = "phonk",
-    Callback = function(selected)
-        selectedTrackName = selected
-        local mod = getMusicMod()
-        if mod then
-            for _, trk in ipairs(mod.PresetTracks) do
-                if trk.Name == selected then
-                    selectedTrackId = trk.File or trk.Id
-                    break
-                end
-            end
-        end
+MusicTab:Button({
+    Title = "Montagem Ceita (d_2fb943edb8ef)",
+    Desc = "Plays Montagem Ceita via DevMP3 bypass",
+    Callback = function()
+        WindUI:Notify({
+            Title = "DevMP3",
+            Content = "Loading Montagem Ceita...",
+            Duration = 2.5,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_2fb943edb8ef"))()
+        end)
     end
 })
 
 MusicTab:Button({
-    Title = "Play Track",
-    Desc = "Plays the currently selected soundtrack",
+    Title = "Montagem Fearless (d_afb0b4b1f348)",
+    Desc = "Plays Montagem Fearless via DevMP3 bypass",
     Callback = function()
-        local mod = getMusicMod()
-        if mod then
-            local ok, msg = mod.play(selectedTrackId, selectedTrackName)
-            WindUI:Notify({
-                Title = "Music Player",
-                Content = msg or ("Playing " .. selectedTrackName),
-                Duration = 2.5,
-                Icon = darlingIcon
-            })
-        end
+        WindUI:Notify({
+            Title = "DevMP3",
+            Content = "Loading Montagem Fearless...",
+            Duration = 2.5,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_afb0b4b1f348"))()
+        end)
     end
+})
+
+MusicTab:Button({
+    Title = "Montagem Topaz (d_def47db76206)",
+    Desc = "Plays Montagem Topaz via DevMP3 bypass",
+    Callback = function()
+        WindUI:Notify({
+            Title = "DevMP3",
+            Content = "Loading Montagem Topaz...",
+            Duration = 2.5,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_def47db76206"))()
+        end)
+    end
+})
+
+MusicTab:Button({
+    Title = "Spooky 3 (d_dbdeeddfb5e1)",
+    Desc = "Plays Spooky 3 via DevMP3 bypass",
+    Callback = function()
+        WindUI:Notify({
+            Title = "DevMP3",
+            Content = "Loading Spooky 3...",
+            Duration = 2.5,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmp3.lua?track=d_dbdeeddfb5e1"))()
+        end)
+    end
+})
+
+MusicTab:Divider()
+
+MusicTab:Paragraph({
+    Title = "Playback Controls",
+    Desc = "Master volume, pitch, and playback toggle",
+    Image = "play"
 })
 
 MusicTab:Button({
@@ -2649,8 +2678,8 @@ MusicTab:Button({
 MusicTab:Divider()
 
 MusicTab:Paragraph({
-    Title = "External Players & Bypass",
-    Desc = "Universal YouTube Player and permanent DevMP3 bypass streaming",
+    Title = "External Players",
+    Desc = "Aurora X Universal YouTube Player integration",
     Image = "sparkles"
 })
 
@@ -2667,23 +2696,6 @@ MusicTab:Button({
                 Icon = darlingIcon
             })
             mod.launchYoutubePlayer()
-        end
-    end
-})
-
-MusicTab:Button({
-    Title = "Launch Darling DevMP3 Player",
-    Desc = "Connects to permanent Darling Media API audio streamer",
-    Callback = function()
-        local mod = getMusicMod()
-        if mod then
-            WindUI:Notify({
-                Title = "DevMP3 Bypass",
-                Content = "Connecting to Darling DevMP3 audio service...",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            mod.launchDevMp3()
         end
     end
 })
@@ -2799,47 +2811,14 @@ NsfwTab:Toggle({
 NsfwTab:Divider()
 
 NsfwTab:Paragraph({
-    Title = "Darling Media Player",
-    Desc = "Fullscreen media loader bypassing Roblox moderation",
-    Image = "eye"
-})
-
-NsfwTab:Button({
-    Title = "Launch Fullscreen Media Loader (DevMode)",
-    Desc = "Opens the full media carousel in clean fullscreen mode",
-    Callback = function()
-        if not nsfwUnlocked then
-            WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            return
-        end
-        WindUI:Notify({
-            Title = "Darling Media",
-            Content = "Loading DevMode Fullscreen Media Player...",
-            Duration = 3,
-            Icon = darlingIcon
-        })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua"))()
-        end)
-    end
-})
-
-NsfwTab:Divider()
-
-NsfwTab:Paragraph({
-    Title = "Custom Media Links",
-    Desc = "Direct fullscreen launch for selected media assets",
+    Title = "Cloud Media Gallery",
+    Desc = "Active cloud-synced images from Darling Media API",
     Image = "sparkles"
 })
 
 NsfwTab:Button({
-    Title = "Media 1 (d_70418b3a9ccd)",
-    Desc = "IMG_8815 - Fullscreen view",
+    Title = "Media 1 (IMG_8815)",
+    Desc = "Loads d_70418b3a9ccd in clean fullscreen view",
     Callback = function()
         if not nsfwUnlocked then
             WindUI:Notify({
@@ -2857,27 +2836,8 @@ NsfwTab:Button({
 })
 
 NsfwTab:Button({
-    Title = "Media 2 (d_56c0332ed740)",
-    Desc = "Direct asset loader",
-    Callback = function()
-        if not nsfwUnlocked then
-            WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            return
-        end
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_56c0332ed740"))()
-        end)
-    end
-})
-
-NsfwTab:Button({
-    Title = "Media 3 (d_b99ca4b22f34)",
-    Desc = "IMG_8799 - Fullscreen view",
+    Title = "Media 2 (IMG_8799 GIF)",
+    Desc = "Loads d_b99ca4b22f34 animated GIF in clean fullscreen view",
     Callback = function()
         if not nsfwUnlocked then
             WindUI:Notify({
@@ -2890,25 +2850,6 @@ NsfwTab:Button({
         end
         pcall(function()
             loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_b99ca4b22f34"))()
-        end)
-    end
-})
-
-NsfwTab:Button({
-    Title = "Media 4 (d_6bfdd60e1d56)",
-    Desc = "Direct asset loader",
-    Callback = function()
-        if not nsfwUnlocked then
-            WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            return
-        end
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_6bfdd60e1d56"))()
         end)
     end
 })

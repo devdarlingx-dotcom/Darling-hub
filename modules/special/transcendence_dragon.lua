@@ -2055,69 +2055,96 @@ function Transcendence.startFlightController()
         local cam = Workspace.CurrentCamera
         local camCF = cam.CFrame
 
-        -- Movement input (Mobile Virtual Thumbstick + PC WASD)
+        -- Movement input (Unified Mobile Virtual Thumbstick + PC WASD)
         local moveDir = Vector3.new(0, 0, 0)
         local rawVec = Vector3.new(0, 0, 0)
         local okVec, v = pcall(function() return UserInputService:GetMoveVector() end)
-        if okVec and v and v.Magnitude > 0 then
+        if okVec and v and v.Magnitude > 0.05 then
             rawVec = v
-        elseif hum.MoveDirection.Magnitude > 0 then
+        elseif hum.MoveDirection.Magnitude > 0.05 then
             rawVec = hum.MoveDirection
         end
 
-        if rawVec.Magnitude > 0 then
-            moveDir = (camCF.RightVector * rawVec.X) + (camCF.LookVector * -rawVec.Z)
-        end
-
-        -- Direct PC inputs for ascending and descending
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-            moveDir = moveDir - Vector3.new(0, 1, 0)
-        end
-
-        local speed = 140
-        local currentPos = hrp.Position
-        local currentLook = hrp.CFrame.LookVector
-        local targetPos = currentPos
-        local targetLook = currentPos + currentLook * 20
-
-        if moveDir.Magnitude > 0 then
-            local normDir = moveDir.Unit
-            targetPos = currentPos + normDir * (speed * dt)
-            targetLook = targetPos + normDir * 20
-            pcall(function() hrp.AssemblyLinearVelocity = normDir * speed end)
+        if rawVec.Magnitude > 0.05 then
+            local fwd = -rawVec.Z
+            local rgt = rawVec.X
+            moveDir = (camCF.LookVector * fwd) + (camCF.RightVector * rgt)
         else
-            -- Smooth, zero-pitch hover without accumulating drift
-            local hoverDelta = math.sin(tick() * 2) * 0.4
-            targetPos = Vector3.new(currentPos.X, currentPos.Y + (hoverDelta * dt * 2), currentPos.Z)
-            targetLook = targetPos + Vector3.new(currentLook.X, 0, currentLook.Z).Unit * 20
-            pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
+            -- Direct keyboard fallback only if GetMoveVector returned zero
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
         end
 
-        local bankAngle = 0
-        if moveDir.Magnitude > 0 then
-            local turnAmount = moveDir:Dot(camCF.RightVector)
-            bankAngle = -turnAmount * 0.35
+        -- Vertical ascent and descent
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDir = moveDir + Vector3.new(0, 1.2, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDir = moveDir - Vector3.new(0, 1.2, 0)
         end
 
-        local riderCF = CFrame.lookAt(targetPos, targetLook)
-        hrp.CFrame = riderCF
+        local speed = 145
+        local dtClamped = math.clamp(dt, 0.001, 0.05)
+
+        if not Transcendence.FlightVelocity then
+            Transcendence.FlightVelocity = Vector3.new(0, 0, 0)
+        end
+        if not Transcendence.FlightBank then
+            Transcendence.FlightBank = 0
+        end
+
+        if moveDir.Magnitude > 0.05 then
+            local targetVel = moveDir.Unit * speed
+            Transcendence.FlightVelocity = Transcendence.FlightVelocity:Lerp(targetVel, dtClamped * 7)
+        else
+            Transcendence.FlightVelocity = Transcendence.FlightVelocity:Lerp(Vector3.new(0, 0, 0), dtClamped * 6)
+        end
+
+        local vel = Transcendence.FlightVelocity
+        local isMoving = vel.Magnitude > 6
+
+        -- Pitch and orientation: smoothly follow camera direction with safe pitch clamp
+        local camLook = camCF.LookVector
+        local horizLook = Vector3.new(camLook.X, 0, camLook.Z)
+        if horizLook.Magnitude > 0.001 then
+            horizLook = horizLook.Unit
+        else
+            horizLook = dragonBody.CFrame.LookVector
+        end
+        local clampedPitch = math.clamp(camLook.Y, -0.6, 0.6)
+        local targetLookVec = (horizLook + Vector3.new(0, clampedPitch, 0)).Unit
+
+        -- Banking based on turning speed
+        local rgtDot = isMoving and (vel.Unit:Dot(camCF.RightVector)) or 0
+        local targetBank = -rgtDot * 0.35
+        Transcendence.FlightBank = math.clamp(Transcendence.FlightBank + (targetBank - Transcendence.FlightBank) * (dtClamped * 6), -0.5, 0.5)
+
+        -- Position calculation with gentle idle floating
+        local hoverDelta = (isMoving and 0 or (math.sin(tick() * 2) * 0.4 * dtClamped * 10))
+        local nextPos = dragonBody.Position + (vel * dtClamped) + Vector3.new(0, hoverDelta, 0)
+
+        local targetCF = CFrame.lookAt(nextPos, nextPos + targetLookVec) * CFrame.Angles(0, 0, Transcendence.FlightBank)
+        local smoothDragonCF = dragonBody.CFrame:Lerp(targetCF, dtClamped * 8)
+        dragonBody.CFrame = smoothDragonCF
+        dragonBody.Transparency = 0.05
+
+        -- Position rider smoothly on the saddle
+        hrp.CFrame = smoothDragonCF * CFrame.new(0, 3.8, -1.0)
         hum.PlatformStand = true
         hum.AutoRotate = false
 
-        local dragonCF = riderCF * CFrame.new(0, -3.8, 1.0) * CFrame.Angles(0, 0, bankAngle)
-        dragonBody.CFrame = dragonCF
-        dragonBody.Transparency = 0.05
+        pcall(function()
+            hrp.AssemblyLinearVelocity = vel
+            dragonBody.AssemblyLinearVelocity = vel
+        end)
 
         -- Spines & Crystals update relative to dragon CFrame
         local now = tick()
         for _, sData in ipairs(Transcendence.DragonSpines) do
             if sData.part and sData.part.Parent then
-                sData.part.CFrame = dragonCF * CFrame.new(0, sData.yOffset, sData.zOffset) * CFrame.Angles(math.rad(25), 0, 0)
+                sData.part.CFrame = smoothDragonCF * CFrame.new(0, sData.yOffset, sData.zOffset) * CFrame.Angles(math.rad(25), 0, 0)
                 sData.part.Transparency = 0.15
                 sData.part.Color = rainbowColor(sData.index / 6 + now * 0.25, 0.4)
             end
@@ -2127,7 +2154,7 @@ function Transcendence.startFlightController()
             local eData = Transcendence.DragonEscorts[idx]
             if eData and eData.part and eData.part.Parent then
                 local eAng = now * 2.5 + (idx / 4) * math.pi * 2
-                local ePos = dragonCF.Position + Vector3.new(math.cos(eAng) * 20.0, math.sin(now * 3.0 + idx) * 2.5, math.sin(eAng) * 20.0)
+                local ePos = smoothDragonCF.Position + Vector3.new(math.cos(eAng) * 20.0, math.sin(now * 3.0 + idx) * 2.5, math.sin(eAng) * 20.0)
                 eData.part.CFrame = CFrame.new(ePos) * CFrame.Angles(now * 3, eAng, 0)
                 eData.part.Transparency = 0.15
                 eData.part.Color = rainbowColor(idx / 4 + now * 0.2, 0.4)
