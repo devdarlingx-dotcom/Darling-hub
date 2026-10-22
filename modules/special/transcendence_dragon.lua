@@ -1984,30 +1984,55 @@ function Transcendence.startFlightController()
         local sg = Instance.new("ScreenGui")
         sg.Name = "DarlingDragonDismountGui"
         sg.ResetOnSpawn = false
+        sg.DisplayOrder = 1000000
         sg.Parent = playerGui
 
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 160, 0, 38)
-        btn.Position = UDim2.new(0.5, -80, 0.85, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(24, 20, 28)
-        btn.TextColor3 = Color3.fromRGB(255, 90, 120)
-        btn.Text = "Dismount Dragon"
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 13
-        btn.BorderSizePixel = 0
-        btn.AutoButtonColor = true
-        btn.Parent = sg
+        local container = Instance.new("Frame")
+        container.Name = "DismountPill"
+        container.Size = UDim2.new(0, 180, 0, 46)
+        container.Position = UDim2.new(0.5, -90, 0.84, 0)
+        container.BackgroundColor3 = Color3.fromRGB(16, 14, 22)
+        container.BackgroundTransparency = 0.2
+        container.BorderSizePixel = 0
+        container.Parent = sg
 
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 8)
-        corner.Parent = btn
+        corner.CornerRadius = UDim.new(0, 12)
+        corner.Parent = container
 
         local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(255, 60, 100)
-        stroke.Thickness = 1.2
-        stroke.Parent = btn
+        stroke.Color = Color3.fromRGB(255, 105, 180)
+        stroke.Thickness = 1.3
+        stroke.Transparency = 0.25
+        stroke.Parent = container
 
-        btn.MouseButton1Click:Connect(function()
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 20)
+        title.Position = UDim2.new(0, 0, 0, 5)
+        title.BackgroundTransparency = 1
+        title.Text = "DISMOUNT DRAGON"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 11
+        title.Parent = container
+
+        local subtitle = Instance.new("TextLabel")
+        subtitle.Size = UDim2.new(1, 0, 0, 14)
+        subtitle.Position = UDim2.new(0, 0, 0, 24)
+        subtitle.BackgroundTransparency = 1
+        subtitle.Text = "Tap to exit 3D flight"
+        subtitle.TextColor3 = Color3.fromRGB(255, 130, 175)
+        subtitle.Font = Enum.Font.GothamMedium
+        subtitle.TextSize = 8.5
+        subtitle.Parent = container
+
+        local clickBtn = Instance.new("TextButton")
+        clickBtn.Size = UDim2.new(1, 0, 1, 0)
+        clickBtn.BackgroundTransparency = 1
+        clickBtn.Text = ""
+        clickBtn.Parent = container
+
+        clickBtn.MouseButton1Click:Connect(function()
             Transcendence.dismount()
         end)
         Transcendence.DismountGui = sg
@@ -2061,14 +2086,18 @@ function Transcendence.startFlightController()
 
         local speed = 140
         local targetPos = dragonBody.Position
-        local targetLook = dragonBody.Position + dragonBody.CFrame.LookVector * 10
+        local currentLook = dragonBody.CFrame.LookVector
+        local targetLook = targetPos + currentLook * 20
 
         if moveDir.Magnitude > 0 then
             local normDir = moveDir.Unit
             targetPos = dragonBody.Position + normDir * (speed * dt)
             targetLook = targetPos + normDir * 20
         else
-            targetPos = dragonBody.Position + Vector3.new(0, math.sin(tick() * 3) * 0.1, 0)
+            -- Smooth, zero-pitch hover without accumulating drift or lookAt jitter
+            local hoverDelta = math.sin(tick() * 2) * 0.4
+            targetPos = Vector3.new(dragonBody.Position.X, dragonBody.Position.Y + (hoverDelta * dt * 2), dragonBody.Position.Z)
+            targetLook = targetPos + Vector3.new(currentLook.X, 0, currentLook.Z).Unit * 20
         end
 
         local bankAngle = 0
@@ -2111,6 +2140,20 @@ function Transcendence.startFlightController()
     end)
 end
 
+function Transcendence.setMountPromptVisible(visible)
+    pcall(function()
+        if Transcendence.DragonBody then
+            local prompt = Transcendence.DragonBody:FindFirstChildOfClass("ProximityPrompt") or Transcendence.DragonBody:FindFirstChild("DragonMountPrompt")
+            if prompt then prompt.Enabled = visible end
+        end
+        if Transcendence.DragonFolder then
+            for _, p in ipairs(Transcendence.DragonFolder:GetDescendants()) do
+                if p:IsA("ProximityPrompt") then p.Enabled = visible end
+            end
+        end
+    end)
+end
+
 function Transcendence.mount()
     local char = LocalPlayer and LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -2127,6 +2170,7 @@ function Transcendence.mount()
     if not dragonBody or not dragonBody.Parent or not saddle or not saddle.Parent then return false end
 
     Transcendence.IsRiding = true
+    Transcendence.setMountPromptVisible(false)
     hrp.CFrame = dragonBody.CFrame * CFrame.new(0, 3.8, -1.0)
     task.wait(0.05)
     pcall(function() saddle:Sit(hum) end)
@@ -2147,6 +2191,7 @@ end
 
 function Transcendence.dismount()
     Transcendence.IsRiding = false
+    Transcendence.setMountPromptVisible(true)
     if Transcendence.FlightConn then
         pcall(function() Transcendence.FlightConn:Disconnect() end)
         Transcendence.FlightConn = nil

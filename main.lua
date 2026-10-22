@@ -1997,65 +1997,8 @@ VisualsTab:Button({
     end
 })
 
-VisualsTab:Button({
-    Title = "Summon Celestial Titan (Transcendence 1000X)",
-    Desc = "Triggers the full 34-second cinematic masterpiece cutscene and permanent companion",
-    Callback = function()
-        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
-        if mod then
-            WindUI:Notify({
-                Title = "Transcendence",
-                Content = "Summoning Celestial Titan Dragon...",
-                Duration = 4,
-                Icon = darlingIcon
-            })
-            mod.play()
-        end
-    end
-})
+VisualsTab:Divider()
 
-VisualsTab:Button({
-    Title = "Mount / Ride Celestial Dragon",
-    Desc = "Mounts the Celestial Titan Dragon with full 3D flight controls (WASD/Mobile thumbstick)",
-    Callback = function()
-        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
-        if mod then
-            local ok = mod.mount()
-            if ok then
-                WindUI:Notify({
-                    Title = "Dragon Mount",
-                    Content = "Mounted Celestial Dragon! Steer with WASD / Mobile thumbstick.",
-                    Duration = 4,
-                    Icon = darlingIcon
-                })
-            else
-                WindUI:Notify({
-                    Title = "Dragon Mount",
-                    Content = "Failed to mount dragon. Summon or spawn it first.",
-                    Duration = 4,
-                    Icon = darlingIcon
-                })
-            end
-        end
-    end
-})
-
-VisualsTab:Button({
-    Title = "Dismount Celestial Dragon",
-    Desc = "Safely jumps off the dragon back onto the ground",
-    Callback = function()
-        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
-        if mod then
-            mod.dismount()
-            WindUI:Notify({
-                Title = "Dragon Mount",
-                Content = "Dismounted dragon successfully.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-        end
-    end
-})
 
 -- ========================================================================
 -- 6. SKINS TAB
@@ -2396,6 +2339,69 @@ SkinsTab:Button({
     end
 })
 
+SkinsTab:Divider()
+
+SkinsTab:Paragraph({
+    Title = "Player Skin Cloner",
+    Desc = "Clone the avatar appearance, accessories, and clothes of nearby players or by User ID",
+    Image = "users"
+})
+
+SkinsTab:Button({
+    Title = "Clone Nearest Player Skin",
+    Desc = "Finds the closest player in the server and clones their avatar appearance",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod then
+            local ok, msg = mod.cloneNearestPlayer()
+            WindUI:Notify({
+                Title = "Skin Cloner",
+                Content = msg or (ok and "Cloned nearest player skin!" or "Failed to clone skin"),
+                Duration = 3,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+local cloneTargetInput = ""
+SkinsTab:Input({
+    Title = "Target Username or User ID",
+    Desc = "Enter Roblox username or numeric User ID to clone",
+    Placeholder = "e.g. 12345678 or PlayerName",
+    Value = "",
+    Callback = function(val)
+        cloneTargetInput = val or ""
+    end
+})
+
+SkinsTab:Button({
+    Title = "Clone Player Appearance by ID",
+    Desc = "Fetches and applies HumanoidDescription for the specified User ID or Name",
+    Callback = function()
+        if cloneTargetInput == "" then
+            WindUI:Notify({
+                Title = "Skin Cloner",
+                Content = "Please enter a valid Username or User ID first.",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+            return
+        end
+        local mod = getSkinsMod()
+        if mod then
+            local ok, msg = mod.cloneByUserId(cloneTargetInput)
+            WindUI:Notify({
+                Title = "Skin Cloner",
+                Content = msg or (ok and "Applied target appearance!" or "Failed to load appearance"),
+                Duration = 3,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+
 -- ========================================================================
 -- 7. MUSIC TAB
 -- ========================================================================
@@ -2405,18 +2411,97 @@ local MusicTab = Window:Tab({
 })
 enhanceTabScrolling(MusicTab)
 
+local MusicMod = nil
+local function getMusicMod()
+    if not MusicMod then
+        MusicMod = DarlingHub:Require("modules/utility/music_engine.lua")
+    end
+    return MusicMod
+end
+
+local selectedTrackName = "phonk"
+local selectedTrackId = "1843588265"
+local customMusicId = ""
+local customMusicName = ""
+
+MusicTab:Paragraph({
+    Title = "Darling Music Player",
+    Desc = "Soundtrack player with audio bypass, speed/pitch controls, and favorites",
+    Image = "music"
+})
+
 MusicTab:Dropdown({
     Title = "Soundtrack Selection",
     Values = {
+        "phonk",
         "Darling Theme - Lo-Fi Chill",
-        "Phonk Drift and Combat",
-        "Anime Aesthetics Vibes",
+        "Anime Vibes - Aesthetic Chill",
         "Synthwave Night Drive",
-        "Custom Sound ID"
+        "Combat Anthem"
     },
-    Default = "Darling Theme - Lo-Fi Chill",
+    Default = "phonk",
     Callback = function(selected)
-        -- Music track logic
+        selectedTrackName = selected
+        local mod = getMusicMod()
+        if mod then
+            for _, trk in ipairs(mod.PresetTracks) do
+                if trk.Name == selected then
+                    selectedTrackId = trk.File or trk.Id
+                    break
+                end
+            end
+        end
+    end
+})
+
+MusicTab:Button({
+    Title = "Play Track",
+    Desc = "Plays the currently selected soundtrack",
+    Callback = function()
+        local mod = getMusicMod()
+        if mod then
+            local ok, msg = mod.play(selectedTrackId, selectedTrackName)
+            WindUI:Notify({
+                Title = "Music Player",
+                Content = msg or ("Playing " .. selectedTrackName),
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+MusicTab:Button({
+    Title = "Pause / Resume",
+    Desc = "Toggles playback between pause and resume",
+    Callback = function()
+        local mod = getMusicMod()
+        if mod then
+            local isPlaying, msg = mod.pauseResume()
+            WindUI:Notify({
+                Title = "Music Player",
+                Content = msg,
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+MusicTab:Button({
+    Title = "Stop Track",
+    Desc = "Completely stops audio playback",
+    Callback = function()
+        local mod = getMusicMod()
+        if mod then
+            mod.stop()
+            WindUI:Notify({
+                Title = "Music Player",
+                Content = "Playback stopped",
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
     end
 })
 
@@ -2430,7 +2515,40 @@ MusicTab:Slider({
     },
     Step = 5,
     Callback = function(val)
-        -- Music volume logic
+        local mod = getMusicMod()
+        if mod then
+            mod.setVolume(val)
+        end
+    end
+})
+
+MusicTab:Dropdown({
+    Title = "Playback Speed & Pitch",
+    Values = {
+        "Slow (0.8x)",
+        "Normal (1.0x)",
+        "Fast (1.25x)",
+        "Nightcore (1.5x)"
+    },
+    Default = "Normal (1.0x)",
+    Callback = function(sel)
+        local mod = getMusicMod()
+        if mod then
+            local speedMap = {
+                ["Slow (0.8x)"] = 0.8,
+                ["Normal (1.0x)"] = 1.0,
+                ["Fast (1.25x)"] = 1.25,
+                ["Nightcore (1.5x)"] = 1.5
+            }
+            local s = speedMap[sel] or 1.0
+            mod.setSpeed(s)
+            WindUI:Notify({
+                Title = "Playback Speed",
+                Content = "Speed set to " .. sel,
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
     end
 })
 
@@ -2439,20 +2557,216 @@ MusicTab:Toggle({
     Desc = "Automatically loops playback when the song ends",
     Value = true,
     Callback = function(state)
-        -- Music loop logic
+        local mod = getMusicMod()
+        if mod then
+            mod.setLooped(state)
+        end
     end
 })
 
--- ========================================================================
--- 8. UNIQUE TAB
--- ========================================================================
-local UniqueTab = Window:Tab({
-    Title = "Unique",
-    Icon = "crown"
-})
-enhanceTabScrolling(UniqueTab)
+MusicTab:Divider()
 
-UniqueTab:Toggle({
+MusicTab:Paragraph({
+    Title = "Custom Sound ID & Favorites",
+    Desc = "Enter any numeric Sound ID or file name and save to favorites",
+    Image = "bookmark"
+})
+
+MusicTab:Input({
+    Title = "Custom Sound ID / File",
+    Desc = "Numeric Roblox Asset ID or local MP3 file",
+    Placeholder = "e.g. 1843588265 or song.mp3",
+    Value = "",
+    Callback = function(val)
+        customMusicId = val or ""
+    end
+})
+
+MusicTab:Input({
+    Title = "Track Name (For Favorites)",
+    Desc = "Display name for your custom track",
+    Placeholder = "e.g. My Favorite Phonk",
+    Value = "",
+    Callback = function(val)
+        customMusicName = val or ""
+    end
+})
+
+MusicTab:Button({
+    Title = "Play Custom ID",
+    Desc = "Plays the entered Sound ID or asset immediately",
+    Callback = function()
+        if customMusicId == "" then
+            WindUI:Notify({
+                Title = "Music Player",
+                Content = "Please enter a valid Sound ID first.",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+            return
+        end
+        local mod = getMusicMod()
+        if mod then
+            local name = (customMusicName ~= "") and customMusicName or ("Track #" .. customMusicId)
+            local ok, msg = mod.play(customMusicId, name)
+            WindUI:Notify({
+                Title = "Music Player",
+                Content = msg or "Playing custom track",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+MusicTab:Button({
+    Title = "Save to Favorites",
+    Desc = "Saves the entered track to your persistent favorites list",
+    Callback = function()
+        if customMusicId == "" then
+            WindUI:Notify({
+                Title = "Favorites",
+                Content = "Enter a Sound ID before saving.",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+            return
+        end
+        local mod = getMusicMod()
+        if mod then
+            local name = (customMusicName ~= "") and customMusicName or ("Track #" .. customMusicId)
+            local ok, msg = mod.addFavorite(name, customMusicId)
+            WindUI:Notify({
+                Title = "Favorites",
+                Content = msg or "Saved to favorites!",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+MusicTab:Divider()
+
+MusicTab:Paragraph({
+    Title = "External Players & Bypass",
+    Desc = "Universal YouTube Player and permanent DevMP3 bypass streaming",
+    Image = "sparkles"
+})
+
+MusicTab:Button({
+    Title = "Launch Universal YouTube Player",
+    Desc = "Opens the external floating YouTube Music Player GUI",
+    Callback = function()
+        local mod = getMusicMod()
+        if mod then
+            WindUI:Notify({
+                Title = "YouTube Player",
+                Content = "Launching Universal YouTube Music Player...",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            mod.launchYoutubePlayer()
+        end
+    end
+})
+
+MusicTab:Button({
+    Title = "Launch Darling DevMP3 Player",
+    Desc = "Connects to permanent Darling Media API audio streamer",
+    Callback = function()
+        local mod = getMusicMod()
+        if mod then
+            WindUI:Notify({
+                Title = "DevMP3 Bypass",
+                Content = "Connecting to Darling DevMP3 audio service...",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            mod.launchDevMp3()
+        end
+    end
+})
+
+
+-- ========================================================================
+-- 8. SUMMON DRAGON TAB
+-- ========================================================================
+local SummonDragonTab = Window:Tab({
+    Title = "Summon Dragon",
+    Icon = "flame"
+})
+enhanceTabScrolling(SummonDragonTab)
+
+SummonDragonTab:Paragraph({
+    Title = "Celestial Titan Dragon",
+    Desc = "Summon, ride, and steer the 34-second cinematic Transcendence Titan dragon",
+    Image = "flame"
+})
+
+SummonDragonTab:Button({
+    Title = "Summon Celestial Titan (Transcendence 1000X)",
+    Desc = "Triggers the full 34-second cinematic masterpiece cutscene and permanent companion",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            WindUI:Notify({
+                Title = "Transcendence",
+                Content = "Summoning Celestial Titan Dragon...",
+                Duration = 4,
+                Icon = darlingIcon
+            })
+            mod.play()
+        end
+    end
+})
+
+SummonDragonTab:Button({
+    Title = "Mount / Ride Celestial Dragon",
+    Desc = "Mounts the Celestial Titan Dragon with full 3D flight controls (WASD / Mobile thumbstick)",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            local ok = mod.mount()
+            if ok then
+                WindUI:Notify({
+                    Title = "Dragon Mount",
+                    Content = "Mounted Celestial Dragon! Steer with WASD / Mobile thumbstick.",
+                    Duration = 4,
+                    Icon = darlingIcon
+                })
+            else
+                WindUI:Notify({
+                    Title = "Dragon Mount",
+                    Content = "Failed to mount dragon. Summon or spawn it first.",
+                    Duration = 4,
+                    Icon = darlingIcon
+                })
+            end
+        end
+    end
+})
+
+SummonDragonTab:Button({
+    Title = "Dismount Celestial Dragon",
+    Desc = "Safely jumps off the dragon back onto the ground",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            mod.dismount()
+            WindUI:Notify({
+                Title = "Dragon Mount",
+                Content = "Dismounted dragon successfully.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SummonDragonTab:Divider()
+
+SummonDragonTab:Toggle({
     Title = "Darling VIP Aura",
     Desc = "Applies exclusive ambient lighting and custom visual highlights",
     Value = false,
@@ -2461,7 +2775,7 @@ UniqueTab:Toggle({
     end
 })
 
-UniqueTab:Toggle({
+SummonDragonTab:Toggle({
     Title = "Fake Lag Simulation",
     Desc = "Simulates network latency spikes to desync position",
     Value = false,
@@ -2470,7 +2784,7 @@ UniqueTab:Toggle({
     end
 })
 
-UniqueTab:Toggle({
+SummonDragonTab:Toggle({
     Title = "SpinBot 360",
     Desc = "High-speed cosmetic character rotation",
     Value = false,
@@ -2484,14 +2798,159 @@ UniqueTab:Toggle({
 -- ========================================================================
 local NsfwTab = Window:Tab({
     Title = "+18 Section",
-    Icon = "flame"
+    Icon = "shield-alert"
 })
 enhanceTabScrolling(NsfwTab)
 
+local nsfwUnlocked = false
+local customMediaAssetId = ""
+
 NsfwTab:Paragraph({
-    Title = "Security Notice",
-    Desc = "Custom user animation section. Contains no default executable payload.",
+    Title = "Content Warning (18+)",
+    Desc = "Sensitive Content Notice: This section contains user-generated media via Darling Media API. Please confirm your age before accessing.",
     Image = "shield-alert"
+})
+
+NsfwTab:Toggle({
+    Title = "Confirm Age Verification (18+)",
+    Desc = "I confirm that I am at least 18 years of age and consent to viewing sensitive user media",
+    Value = false,
+    Callback = function(state)
+        nsfwUnlocked = state
+        WindUI:Notify({
+            Title = "Access Control",
+            Content = state and "18+ Section unlocked. Media API controls enabled." or "18+ Section locked.",
+            Duration = 3,
+            Icon = darlingIcon
+        })
+    end
+})
+
+NsfwTab:Divider()
+
+NsfwTab:Paragraph({
+    Title = "Darling Media API (DevMode Bypass)",
+    Desc = "In-game fullscreen photo, video, and GIF media loader bypassing Roblox moderation",
+    Image = "eye"
+})
+
+NsfwTab:Button({
+    Title = "Launch Fullscreen Media Loader (DevMode)",
+    Desc = "Opens the full media carousel with gallery navigation arrows and clean UI",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        WindUI:Notify({
+            Title = "Darling Media",
+            Content = "Loading DevMode Fullscreen Media Player...",
+            Duration = 3,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua"))()
+        end)
+    end
+})
+
+NsfwTab:Button({
+    Title = "Launch Static Photos & GIFs",
+    Desc = "Loads only static image and animated GIF gallery from Darling Media API",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        WindUI:Notify({
+            Title = "Darling Media",
+            Content = "Loading static gallery...",
+            Duration = 3,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?type=static"))()
+        end)
+    end
+})
+
+NsfwTab:Button({
+    Title = "Launch Video Player (Anti-Flicker)",
+    Desc = "Loads 15 FPS HD video gallery with double-buffer anti-flicker",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        WindUI:Notify({
+            Title = "Darling Media",
+            Content = "Loading video player...",
+            Duration = 3,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?type=video"))()
+        end)
+    end
+})
+
+NsfwTab:Input({
+    Title = "Specific Asset ID",
+    Desc = "Enter a specific Darling Media Asset ID to view individually",
+    Placeholder = "e.g. asset_id_here",
+    Value = "",
+    Callback = function(val)
+        customMediaAssetId = val or ""
+    end
+})
+
+NsfwTab:Button({
+    Title = "Launch Specific Asset ID",
+    Desc = "Opens the specified asset in clean fullscreen mode",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        if customMediaAssetId == "" then
+            WindUI:Notify({
+                Title = "Darling Media",
+                Content = "Enter an Asset ID first.",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+            return
+        end
+        WindUI:Notify({
+            Title = "Darling Media",
+            Content = "Loading asset " .. customMediaAssetId .. "...",
+            Duration = 3,
+            Icon = darlingIcon
+        })
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=" .. customMediaAssetId))()
+        end)
+    end
 })
 
 NsfwTab:Divider()

@@ -14,7 +14,7 @@ local DarlingSkins = {
         AffectTransform = true,
         AffectEnvironment = false,
         ActiveColor = Color3.fromRGB(255, 105, 180),
-        Originals = {},
+        Originals = setmetatable({}, { __mode = "k" }),
         Connections = {},
     },
     Tools = {
@@ -52,8 +52,10 @@ DarlingSkins.Presets = {
     ["Gold"] = Color3.fromRGB(245, 195, 45),
     ["Magenta"] = Color3.fromRGB(255, 30, 140),
     ["White"] = Color3.fromRGB(255, 255, 255),
-    ["Black"] = Color3.fromRGB(20, 20, 25),
-    ["Midnight"] = Color3.fromRGB(45, 35, 55),
+    ["Black"] = Color3.fromRGB(15, 15, 18),
+    ["Void Black"] = Color3.fromRGB(5, 5, 8),
+    ["Midnight"] = Color3.fromRGB(10, 12, 24),
+    ["Black & White"] = Color3.fromRGB(255, 255, 255),
     ["Violet"] = Color3.fromRGB(110, 40, 190),
     ["Lime"] = Color3.fromRGB(130, 255, 50),
     ["Orange"] = Color3.fromRGB(255, 140, 30),
@@ -68,6 +70,7 @@ DarlingSkins.Presets = {
 DarlingSkins.SkinCatalog = {
     { Name = "Darling Signature", Color = Color3.fromRGB(255, 105, 180) },
     { Name = "Pure White", Color = Color3.fromRGB(255, 255, 255) },
+    { Name = "Void Black", Color = Color3.fromRGB(10, 10, 14) },
     { Name = "Pure Amethyst", Color = Color3.fromRGB(165, 80, 235) },
     { Name = "Emerald Empress", Color = Color3.fromRGB(50, 220, 120) },
     { Name = "Golden Sovereign", Color = Color3.fromRGB(245, 195, 45) },
@@ -87,32 +90,6 @@ DarlingSkins.SkinCatalog = {
     { Name = "Ice Void", Color = Color3.fromRGB(80, 210, 240) },
 }
 
-DarlingSkins.WeaponLists = {
-    Fruits = {
-        "Auto", "Kitsune", "Dragon", "Dough", "Venom", "Control", "Spirit", "Shadow", "Blizzard", "Gravity",
-        "Mammoth", "T-Rex", "Sound", "Phoenix", "Portal", "Rumble", "Pain", "Buddha", "Quake", "Magma",
-        "Ghost", "Barrier", "Rubber", "Light", "Diamond", "Dark", "Sand", "Ice", "Falcon", "Flame",
-        "Spike", "Smoke", "Bomb", "Spring", "Chop", "Spin", "Rocket", "Yeti"
-    },
-    Swords = {
-        "Auto", "Cursed Dual Katana", "True Triple Katana", "Shark Anchor", "Dark Blade",
-        "Fox Lamp", "Hallow Scythe", "Tushita", "Yama", "Spikey Trident",
-        "Dragon Trident", "Saber", "Rengoku", "Bisento", "Pole (2nd Form)",
-        "Midnight Blade", "Soul Cane", "Gravity Cane", "Canvander", "Buddy Sword",
-        "Koko", "Shisui", "Wando", "Saddi", "Longsword", "Triple Katana",
-        "Iron Mace", "Dual Katana", "Katana", "Cutlass"
-    },
-    Guns = {
-        "Auto", "Soul Guitar", "Serpent Bow", "Kabucha", "Acidum Rifle", "Bizarre Rifle",
-        "Bazooka", "Refined Slingshot", "Flintlock", "Cannon", "Musket", "Slingshot"
-    },
-    Melee = {
-        "Auto", "Sanguine Art", "Godhuman", "Dragon Talon", "Electric Claw", "Sharkman Karate",
-        "Death Step", "Superhuman", "Dragon Breath", "Water Kung Fu", "Electro",
-        "Dark Step", "Combat"
-    }
-}
-
 DarlingSkins.CategoryTips = {
     Fruits = "Blox Fruit",
     Swords = "Sword",
@@ -123,6 +100,30 @@ DarlingSkins.CategoryTips = {
 -- ============================================================================
 -- SECTION 1: VFX & SKILL COLORING
 -- ============================================================================
+local function blendColor(baseColor, targetColor)
+    if typeof(baseColor) ~= "Color3" then return targetColor end
+    if targetColor.R > 0.92 and targetColor.G > 0.92 and targetColor.B > 0.92 then
+        return Color3.fromRGB(255, 255, 255)
+    end
+    local h, s, v = targetColor:ToHSV()
+    local lum = math.clamp(baseColor.R * 0.2126 + baseColor.G * 0.7152 + baseColor.B * 0.0722, 0, 1)
+    local val = math.clamp(v * (0.35 + 0.65 * math.sqrt(lum)), 0.05, 1)
+    local recolored = Color3.fromHSV(h, s, val)
+    return baseColor:Lerp(recolored, 1.0)
+end
+
+local function blendColorSequence(origSeq, targetColor)
+    if typeof(origSeq) ~= "ColorSequence" then return ColorSequence.new(targetColor) end
+    if targetColor.R > 0.92 and targetColor.G > 0.92 and targetColor.B > 0.92 then
+        return ColorSequence.new(Color3.fromRGB(255, 255, 255))
+    end
+    local keypoints = {}
+    for _, kp in ipairs(origSeq.Keypoints) do
+        table.insert(keypoints, ColorSequenceKeypoint.new(kp.Time, blendColor(kp.Value, targetColor)))
+    end
+    return ColorSequence.new(keypoints)
+end
+
 local function recordOriginal(inst, prop)
     if not DarlingSkins.VFX.Originals[inst] then
         DarlingSkins.VFX.Originals[inst] = {}
@@ -137,26 +138,40 @@ end
 local function applyVisualColor(inst, targetColor)
     if not inst or not inst.Parent then return end
     targetColor = targetColor or DarlingSkins.VFX.ActiveColor
+    local isWhite = (targetColor.R > 0.92 and targetColor.G > 0.92 and targetColor.B > 0.92)
+    local isDark = (targetColor.R < 0.2 and targetColor.G < 0.2 and targetColor.B < 0.2)
 
     pcall(function()
         if inst:IsA("ParticleEmitter") then
             if not DarlingSkins.VFX.AffectSkills then return end
             recordOriginal(inst, "Color")
             recordOriginal(inst, "LightEmission")
-            inst.Color = ColorSequence.new(targetColor)
-            inst.LightEmission = 0.8
+            local orig = (DarlingSkins.VFX.Originals[inst] and DarlingSkins.VFX.Originals[inst].Color) or inst.Color
+            inst.Color = blendColorSequence(orig, targetColor)
+            if isDark then
+                inst.LightEmission = 0
+            elseif isWhite then
+                inst.LightEmission = 1
+            else
+                inst.LightEmission = 0.25
+            end
         elseif inst:IsA("Beam") or inst:IsA("Trail") then
             if not DarlingSkins.VFX.AffectSkills and not DarlingSkins.VFX.AffectSwords then return end
             recordOriginal(inst, "Color")
             recordOriginal(inst, "LightEmission")
-            inst.Color = ColorSequence.new(targetColor)
-            inst.LightEmission = 0.8
+            local orig = (DarlingSkins.VFX.Originals[inst] and DarlingSkins.VFX.Originals[inst].Color) or inst.Color
+            inst.Color = blendColorSequence(orig, targetColor)
+            if isDark then
+                inst.LightEmission = 0
+            elseif isWhite then
+                inst.LightEmission = 1
+            end
         elseif inst:IsA("Highlight") then
             if not DarlingSkins.VFX.AffectTransform then return end
             recordOriginal(inst, "FillColor")
             recordOriginal(inst, "OutlineColor")
             inst.FillColor = targetColor
-            inst.OutlineColor = Color3.fromRGB(255, 255, 255)
+            inst.OutlineColor = isWhite and Color3.fromRGB(255, 255, 255) or (isDark and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(255, 255, 255))
         elseif inst:IsA("Light") then
             if not DarlingSkins.VFX.AffectSkills then return end
             recordOriginal(inst, "Color")
@@ -294,36 +309,76 @@ end
 -- ============================================================================
 -- SECTION 2: TOOL SKINS & HOTBAR
 -- ============================================================================
-local function findHotbarSlot(category, targetItem)
+local function findHotbarSlot(cat, itemName)
+    cat = cat or DarlingSkins.Tools.SelectedCategory or "Fruits"
     local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
     if not pGui then return nil, nil end
 
-    local mainGui = pGui:FindFirstChild("Main")
-    local hotbar = mainGui and (mainGui:FindFirstChild("Hotbar") or mainGui:FindFirstChild("ToolBar"))
-    if not hotbar then
-        hotbar = pGui:FindFirstChild("Hotbar", true)
-    end
-    if not hotbar then return nil, nil end
+    local targetLower = itemName and string.lower(itemName) or ""
+    local targetSlotIdx = (cat == "Fruits" and 2) or (cat == "Swords" and 3) or (cat == "Guns" and 4) or 1
 
-    local slotOrder = { Fruits = 2, Swords = 3, Guns = 4, Melee = 1 }
-
-    local candidates = {}
-    for _, desc in ipairs(hotbar:GetDescendants()) do
-        if desc:IsA("ImageLabel") or desc:IsA("ImageButton") then
-            local parentName = string.lower(desc.Parent and desc.Parent.Name or "")
-            local selfName = string.lower(desc.Name)
-            if selfName:find("icon") or parentName:find("slot") or parentName:find("item") then
-                table.insert(candidates, desc)
+    local function checkContainer(container)
+        if not container then return nil, nil end
+        local slots = {}
+        for _, slot in ipairs(container:GetChildren()) do
+            if slot:IsA("GuiObject") then
+                table.insert(slots, slot)
+                local matched = false
+                local itemAttr = slot:GetAttribute("ItemName") or slot:GetAttribute("ToolName")
+                if itemAttr and targetLower ~= "" and string.lower(tostring(itemAttr)):find(targetLower, 1, true) then
+                    matched = true
+                end
+                local title = slot:FindFirstChild("Title")
+                if title and title:IsA("TextLabel") and targetLower ~= "" then
+                    local t1 = string.lower(title.Text)
+                    if t1:find(targetLower, 1, true) then
+                        matched = true
+                    end
+                end
+                if targetLower ~= "" and string.lower(slot.Name):find(targetLower, 1, true) then
+                    matched = true
+                end
+                if matched then
+                    local img = slot:FindFirstChild("Image") or slot:FindFirstChildOfClass("ImageLabel")
+                    if img and img:IsA("ImageLabel") then
+                        return img, slot
+                    end
+                end
             end
         end
+
+        table.sort(slots, function(a, b) return (a.LayoutOrder or 0) < (b.LayoutOrder or 0) end)
+        if slots[targetSlotIdx] then
+            local s = slots[targetSlotIdx]
+            local img = s:FindFirstChild("Image") or s:FindFirstChildOfClass("ImageLabel")
+            if img and img:IsA("ImageLabel") then
+                return img, s
+            end
+        end
+        return nil, nil
     end
 
-    if #candidates > 0 then
-        local targetIdx = slotOrder[category] or 1
-        if candidates[targetIdx] then
-            return candidates[targetIdx], targetIdx
+    local bpGui = pGui:FindFirstChild("Backpack")
+    if bpGui then
+        local hotbar = bpGui:FindFirstChild("Hotbar")
+        if hotbar then
+            local img, slot = checkContainer(hotbar:FindFirstChild("Container") or hotbar)
+            if img then return img, slot end
         end
-        return candidates[1], 1
+    end
+
+    local mainGui = pGui:FindFirstChild("Main")
+    if mainGui then
+        local hotbar = mainGui:FindFirstChild("Hotbar")
+        if hotbar then
+            local img, slot = checkContainer(hotbar:FindFirstChild("Container") or hotbar)
+            if img then return img, slot end
+        end
+        local bottom = mainGui:FindFirstChild("BottomBar")
+        if bottom then
+            local img, slot = checkContainer(bottom:FindFirstChild("Container") or bottom)
+            if img then return img, slot end
+        end
     end
 
     return nil, nil
@@ -344,13 +399,14 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
         skin = { Name = tostring(skinName), Color = col }
     end
 
-    -- Recolor hotbar slot icon
-    local img, _ = findHotbarSlot(category)
+    -- Recolor hotbar slot icon specifically for this category
+    local img, slot = findHotbarSlot(category)
     if img then
-        if not DarlingSkins.Tools.HotbarCache[img] then
-            DarlingSkins.Tools.HotbarCache[img] = {
+        if not DarlingSkins.Tools.HotbarCache[category] then
+            DarlingSkins.Tools.HotbarCache[category] = {
                 ImageColor3 = img.ImageColor3,
-                Image = img.Image
+                Image = img.Image,
+                ImgInstance = img
             }
         end
         img.ImageColor3 = skin.Color
@@ -370,7 +426,7 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
         end)
     end
 
-    -- Recolor equipped and backpack tools
+    -- Recolor equipped and backpack tools matching this category only
     pcall(function()
         local targetTip = DarlingSkins.CategoryTips[category]
         local tools = {}
@@ -414,25 +470,25 @@ function DarlingSkins.resetCategoryToolSkin(category)
         DarlingSkins.Tools.Listeners[category] = nil
     end
 
-    local img, _ = findHotbarSlot(category)
-    if img and DarlingSkins.Tools.HotbarCache[img] then
+    local cached = DarlingSkins.Tools.HotbarCache[category]
+    if cached and cached.ImgInstance and cached.ImgInstance.Parent then
         pcall(function()
-            img.ImageColor3 = DarlingSkins.Tools.HotbarCache[img].ImageColor3
-            img.Image = DarlingSkins.Tools.HotbarCache[img].Image
+            cached.ImgInstance.ImageColor3 = cached.ImageColor3
+            cached.ImgInstance.Image = cached.Image
         end)
     end
-
+    DarlingSkins.Tools.HotbarCache[category] = nil
     DarlingSkins.Tools.EquippedSkins[category] = nil
 end
 
 function DarlingSkins.resetAllToolSkins()
-    for cat, _ in pairs(DarlingSkins.Tools.EquippedSkins) do
+    for cat, _ in pairs(DarlingSkins.CategoryTips) do
         DarlingSkins.resetCategoryToolSkin(cat)
     end
 end
 
 -- ============================================================================
--- SECTION 3: CHARACTER SKIN CHANGER
+-- SECTION 3: CHARACTER SKIN CHANGER & APPEARANCE CLONER
 -- ============================================================================
 function DarlingSkins.applyCharacterSkin(presetName, customColor)
     local col = customColor or DarlingSkins.Presets[presetName] or Color3.fromRGB(255, 105, 180)
@@ -510,7 +566,103 @@ function DarlingSkins.setAuraEnabled(state)
     end
 end
 
--- Re-apply skin on character respawn
+function DarlingSkins.cloneCharacterAppearance(targetChar)
+    if not targetChar then return false, "Target character not found" end
+    local myChar = LocalPlayer.Character
+    if not myChar then return false, "Local character not found" end
+
+    local myHum = myChar:FindFirstChildOfClass("Humanoid")
+    local tgtHum = targetChar:FindFirstChildOfClass("Humanoid")
+    if not myHum or not tgtHum then return false, "Humanoid missing" end
+
+    local okDesc, desc = pcall(function()
+        return tgtHum:GetAppliedDescription()
+    end)
+    if okDesc and desc then
+        pcall(function()
+            myHum:ApplyDescription(desc)
+        end)
+    end
+
+    pcall(function()
+        for _, item in ipairs(myChar:GetChildren()) do
+            if item:IsA("Accessory") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("BodyColors") then
+                item:Destroy()
+            end
+        end
+
+        for _, item in ipairs(targetChar:GetChildren()) do
+            if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("BodyColors") then
+                local clone = item:Clone()
+                clone.Parent = myChar
+            elseif item:IsA("Accessory") then
+                local clone = item:Clone()
+                clone.Parent = myChar
+            end
+        end
+    end)
+
+    return true, "Cloned appearance from " .. targetChar.Name
+end
+
+function DarlingSkins.cloneNearestPlayer()
+    local myChar = LocalPlayer.Character
+    local myHrp = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Torso"))
+    if not myHrp then return false, "Local character missing" end
+
+    local closestDist = math.huge
+    local closestPlr = nil
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local pHrp = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso")
+            if pHrp then
+                local dist = (myHrp.Position - pHrp.Position).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closestPlr = p
+                end
+            end
+        end
+    end
+
+    if closestPlr and closestPlr.Character then
+        return DarlingSkins.cloneCharacterAppearance(closestPlr.Character)
+    end
+    return false, "No nearby player found"
+end
+
+function DarlingSkins.cloneByUserId(identifier)
+    if not identifier or identifier == "" then return false, "Invalid User ID or Name" end
+    local userId = tonumber(identifier)
+    if not userId then
+        local okId, fetchedId = pcall(function()
+            return Players:GetUserIdFromNameAsync(tostring(identifier))
+        end)
+        if okId and fetchedId then
+            userId = fetchedId
+        else
+            return false, "Could not resolve username: " .. tostring(identifier)
+        end
+    end
+
+    local myChar = LocalPlayer.Character
+    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    if not hum then return false, "Local character missing" end
+
+    local okDesc, desc = pcall(function()
+        return Players:GetHumanoidDescriptionFromUserId(userId)
+    end)
+    if okDesc and desc then
+        pcall(function()
+            hum:ApplyDescription(desc)
+        end)
+        return true, "Applied skin from User ID: " .. tostring(userId)
+    end
+
+    return false, "Failed to load HumanoidDescription for User ID: " .. tostring(userId)
+end
+
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     if DarlingSkins.Character.Enabled then
         task.delay(0.3, function()
