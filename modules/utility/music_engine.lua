@@ -255,26 +255,7 @@ end
 -- initialize favorites
 pcall(function() DarlingMusic.loadFavorites() end)
 
-function DarlingMusic.destroy()
-    DarlingMusic.stop()
-    if DarlingMusic.SoundInstance then
-        pcall(function() DarlingMusic.SoundInstance:Destroy() end)
-        DarlingMusic.SoundInstance = nil
-    end
-end
-
-function DarlingMusic.getDiagnostics()
-    local isPlaying = false
-    if DarlingMusic.SoundInstance and DarlingMusic.SoundInstance.Parent then
-        isPlaying = DarlingMusic.SoundInstance.IsPlaying
-    end
-    return {
-        Name = "MusicEngine",
-        Active = isPlaying,
-        Connections = 0,
-        Threads = 0,
-        CurrentTrack = DarlingMusic.CurrentTrackName,
-    }
-end
+_G.DarlingMusic = DarlingMusic
+if getgenv then pcall(function() getgenv().DarlingMusic = DarlingMusic end) end
 
 return DarlingMusic

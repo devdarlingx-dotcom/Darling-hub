@@ -138,33 +138,12 @@ local function executeFastAttackBurst()
     end
 end
 
-local hookedTools = {}
-
-local function unhookTool(tool)
-    local conn = hookedTools[tool]
-    if conn then
-        pcall(function() conn:Disconnect() end)
-        hookedTools[tool] = nil
-    end
-end
-
 local function hookTool(tool)
     if tool and tool:IsA("Tool") and tool.ToolTip ~= "Gun" then
-        if hookedTools[tool] then return end
         local conn = tool.Activated:Connect(function()
             if FastAttack.Enabled then executeFastAttackBurst() end
         end)
-        hookedTools[tool] = conn
         table.insert(FastAttack.ToolConnections, conn)
-
-        local unequipConn
-        unequipConn = tool.Unequipped:Connect(function()
-            if unequipConn then
-                pcall(function() unequipConn:Disconnect() end)
-            end
-            unhookTool(tool)
-        end)
-        table.insert(FastAttack.ToolConnections, unequipConn)
     end
 end
 
@@ -231,10 +210,6 @@ function FastAttack.disable()
         pcall(function() conn:Disconnect() end)
     end
     table.clear(FastAttack.ToolConnections)
-    for tool, conn in pairs(hookedTools) do
-        pcall(function() conn:Disconnect() end)
-    end
-    table.clear(hookedTools)
     if FastAttack.Widget then
         FastAttack.Widget:Set(false, true)
         FastAttack.Widget:SetVisible(false)
@@ -254,30 +229,6 @@ function FastAttack.setFloatingVisible(visible)
     if FastAttack.Widget then
         FastAttack.Widget:SetVisible(visible)
     end
-end
-
-function FastAttack.destroy()
-    FastAttack.disable()
-    if FastAttack.KeyConnection then
-        pcall(function() FastAttack.KeyConnection:Disconnect() end)
-        FastAttack.KeyConnection = nil
-    end
-    if FastAttack.Widget then
-        pcall(function() FastAttack.Widget:Destroy() end)
-        FastAttack.Widget = nil
-    end
-end
-
-function FastAttack.getDiagnostics()
-    local connCount = 0
-    if FastAttack.HeartbeatConnection then connCount = connCount + 1 end
-    if FastAttack.KeyConnection then connCount = connCount + 1 end
-    connCount = connCount + #FastAttack.ToolConnections
-    return {
-        Connections = connCount,
-        Threads = 0,
-        Active = FastAttack.Enabled,
-    }
 end
 
 return FastAttack

@@ -121,76 +121,6 @@ local function GetEntityPart(entity)
         or entity.PrimaryPart
 end
 
-local enemiesCandidates = {}
-local seaCandidates = {}
-local workspaceSeaCandidates = {}
-local candidateConns = {}
-
-local function isSeaModel(obj)
-    if not (obj and obj:IsA("Model")) then return false end
-    local name = obj.Name:lower()
-    return (name:find("ship") or name:find("boat") or name:find("beast") or name:find("terror") or name:find("piranha") or name:find("leviathan")) ~= nil
-end
-
-local function clearCandidateListeners()
-    for _, c in ipairs(candidateConns) do
-        pcall(function() c:Disconnect() end)
-    end
-    table.clear(candidateConns)
-    table.clear(enemiesCandidates)
-    table.clear(seaCandidates)
-    table.clear(workspaceSeaCandidates)
-end
-
-local function setupCandidateListeners()
-    clearCandidateListeners()
-
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if enemies then
-        for _, e in ipairs(enemies:GetChildren()) do
-            table.insert(enemiesCandidates, e)
-        end
-        table.insert(candidateConns, enemies.ChildAdded:Connect(function(c)
-            table.insert(enemiesCandidates, c)
-        end))
-        table.insert(candidateConns, enemies.ChildRemoved:Connect(function(c)
-            local idx = table.find(enemiesCandidates, c)
-            if idx then table.remove(enemiesCandidates, idx) end
-        end))
-    end
-
-    local seaFolders = { Workspace:FindFirstChild("SeaBeasts"), Workspace:FindFirstChild("SeaEvents") }
-    for _, folder in ipairs(seaFolders) do
-        if folder then
-            for _, m in ipairs(folder:GetChildren()) do
-                table.insert(seaCandidates, m)
-            end
-            table.insert(candidateConns, folder.ChildAdded:Connect(function(c)
-                table.insert(seaCandidates, c)
-            end))
-            table.insert(candidateConns, folder.ChildRemoved:Connect(function(c)
-                local idx = table.find(seaCandidates, c)
-                if idx then table.remove(seaCandidates, idx) end
-            end))
-        end
-    end
-
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if isSeaModel(obj) then
-            table.insert(workspaceSeaCandidates, obj)
-        end
-    end
-    table.insert(candidateConns, Workspace.ChildAdded:Connect(function(c)
-        if isSeaModel(c) then
-            table.insert(workspaceSeaCandidates, c)
-        end
-    end))
-    table.insert(candidateConns, Workspace.ChildRemoved:Connect(function(c)
-        local idx = table.find(workspaceSeaCandidates, c)
-        if idx then table.remove(workspaceSeaCandidates, idx) end
-    end))
-end
-
 local function GetClosestTarget()
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -200,47 +130,45 @@ local function GetClosestTarget()
     local myPos = root.Position
 
     if DragonGun.AttackMobs then
-        for i = #enemiesCandidates, 1, -1 do
-            local enemy = enemiesCandidates[i]
-            if enemy and enemy.Parent then
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if enemies then
+            for _, enemy in ipairs(enemies:GetChildren()) do
                 local hum = enemy:FindFirstChildOfClass("Humanoid")
                 local r = GetEntityPart(enemy)
                 if hum and hum.Health > 0 and r then
                     local d = (r.Position - myPos).Magnitude
                     if d < dist then dist = d; closest = r end
                 end
-            else
-                table.remove(enemiesCandidates, i)
             end
         end
     end
 
     if DragonGun.AttackSeaEvents then
-        for i = #seaCandidates, 1, -1 do
-            local seaMob = seaCandidates[i]
-            if seaMob and seaMob.Parent then
-                local hum = seaMob:FindFirstChildOfClass("Humanoid")
-                local r = GetEntityPart(seaMob)
-                if r and (not hum or hum.Health > 0) then
-                    local d = (r.Position - myPos).Magnitude
-                    if d < dist then dist = d; closest = r end
+        local seaFolders = { Workspace:FindFirstChild("SeaBeasts"), Workspace:FindFirstChild("SeaEvents") }
+        for _, folder in ipairs(seaFolders) do
+            if folder then
+                for _, seaMob in ipairs(folder:GetChildren()) do
+                    local hum = seaMob:FindFirstChildOfClass("Humanoid")
+                    local r = GetEntityPart(seaMob)
+                    if r and (not hum or hum.Health > 0) then
+                        local d = (r.Position - myPos).Magnitude
+                        if d < dist then dist = d; closest = r end
+                    end
                 end
-            else
-                table.remove(seaCandidates, i)
             end
         end
 
-        for i = #workspaceSeaCandidates, 1, -1 do
-            local obj = workspaceSeaCandidates[i]
-            if obj and obj.Parent and obj ~= char then
-                local hum = obj:FindFirstChildOfClass("Humanoid")
-                local r = GetEntityPart(obj)
-                if r and (not hum or hum.Health > 0) then
-                    local d = (r.Position - myPos).Magnitude
-                    if d < dist then dist = d; closest = r end
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj:IsA("Model") and obj ~= char then
+                local name = obj.Name:lower()
+                if name:find("ship") or name:find("boat") or name:find("beast") or name:find("terror") or name:find("piranha") or name:find("leviathan") then
+                    local hum = obj:FindFirstChildOfClass("Humanoid")
+                    local r = GetEntityPart(obj)
+                    if r and (not hum or hum.Health > 0) then
+                        local d = (r.Position - myPos).Magnitude
+                        if d < dist then dist = d; closest = r end
+                    end
                 end
-            else
-                table.remove(workspaceSeaCandidates, i)
             end
         end
     end
@@ -294,7 +222,6 @@ function DragonGun.enable()
     DragonGun.Enabled = true
     resolveRemotes()
     InitDragonGun()
-    setupCandidateListeners()
 
     if not DragonGun.RenderConnection then
         DragonGun.RenderConnection = RunService.RenderStepped:Connect(onRenderStep)
@@ -333,7 +260,6 @@ end
 
 function DragonGun.disable()
     DragonGun.Enabled = false
-    clearCandidateListeners()
     if DragonGun.RenderConnection then
         pcall(function() DragonGun.RenderConnection:Disconnect() end)
         DragonGun.RenderConnection = nil
@@ -357,30 +283,6 @@ function DragonGun.setFloatingVisible(visible)
     if DragonGun.Widget then
         DragonGun.Widget:SetVisible(visible)
     end
-end
-
-function DragonGun.destroy()
-    DragonGun.disable()
-    if DragonGun.InputConnection then
-        pcall(function() DragonGun.InputConnection:Disconnect() end)
-        DragonGun.InputConnection = nil
-    end
-    if DragonGun.Widget then
-        pcall(function() DragonGun.Widget:Destroy() end)
-        DragonGun.Widget = nil
-    end
-end
-
-function DragonGun.getDiagnostics()
-    local connCount = 0
-    if DragonGun.RenderConnection then connCount = connCount + 1 end
-    if DragonGun.InputConnection then connCount = connCount + 1 end
-    connCount = connCount + #candidateConns
-    return {
-        Connections = connCount,
-        Threads = 0,
-        Active = DragonGun.Enabled,
-    }
 end
 
 return DragonGun

@@ -115,38 +115,31 @@ end
 function Flashstep.setInfinite(state)
     Flashstep.InfiniteEnabled = state
     local char = LocalPlayer.Character
-    if state then
-        if char then
-            Flashstep.enforceInfinite(char)
-        end
-        if not Flashstep.CharConn then
-            Flashstep.CharConn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+    if char then
+        Flashstep.enforceInfinite(char)
+    end
+    if state and not Flashstep.CharConn then
+        Flashstep.CharConn = LocalPlayer.CharacterAdded:Connect(function(newChar)
+            task.wait(0.5)
+            Flashstep.enforceInfinite(newChar)
+        end)
+    elseif not state and Flashstep.CharConn then
+        pcall(function() Flashstep.CharConn:Disconnect() end)
+        Flashstep.CharConn = nil
+    end
+
+    if state and not Flashstep.LoopRunning then
+        Flashstep.LoopRunning = true
+        task.spawn(function()
+            while Flashstep.InfiniteEnabled do
                 task.wait(0.5)
-                Flashstep.enforceInfinite(newChar)
-            end)
-        end
-        if not Flashstep.LoopRunning then
-            Flashstep.LoopRunning = true
-            task.spawn(function()
-                while Flashstep.InfiniteEnabled do
-                    task.wait(0.5)
-                    local c = LocalPlayer.Character
-                    if c and c:GetAttribute("FlashstepCooldown") ~= 1 then
-                        pcall(function() c:SetAttribute("FlashstepCooldown", 1) end)
-                    end
+                local c = LocalPlayer.Character
+                if c and c:GetAttribute("FlashstepCooldown") ~= 1 then
+                    pcall(function() c:SetAttribute("FlashstepCooldown", 1) end)
                 end
-                Flashstep.LoopRunning = false
-            end)
-        end
-    else
-        if Flashstep.AttrConn then
-            pcall(function() Flashstep.AttrConn:Disconnect() end)
-            Flashstep.AttrConn = nil
-        end
-        if Flashstep.CharConn then
-            pcall(function() Flashstep.CharConn:Disconnect() end)
-            Flashstep.CharConn = nil
-        end
+            end
+            Flashstep.LoopRunning = false
+        end)
     end
 end
 
@@ -194,27 +187,6 @@ function Flashstep.setFloatingVisible(visible)
     if Flashstep.Widget then
         Flashstep.Widget:SetVisible(visible)
     end
-end
-
-function Flashstep.destroy()
-    Flashstep.setInfinite(false)
-    Flashstep.setAimbot(false)
-    if Flashstep.Widget then
-        pcall(function() Flashstep.Widget:Destroy() end)
-        Flashstep.Widget = nil
-    end
-end
-
-function Flashstep.getDiagnostics()
-    local connCount = 0
-    if Flashstep.CharConn then connCount = connCount + 1 end
-    if Flashstep.AttrConn then connCount = connCount + 1 end
-    local threadCount = Flashstep.LoopRunning and 1 or 0
-    return {
-        Connections = connCount,
-        Threads = threadCount,
-        Active = Flashstep.InfiniteEnabled or Flashstep.AimbotEnabled,
-    }
 end
 
 return Flashstep

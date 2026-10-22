@@ -126,25 +126,65 @@ end
 -- ============================================================================
 -- MUSIC CONTROLLER (MONTAGEM TOPAZ)
 -- ============================================================================
+local function getMusicEngine()
+    local dm = rawget(_G, "DarlingMusic") or (getgenv and rawget(getgenv(), "DarlingMusic"))
+    if dm and dm.playStream then return dm end
+    local hub = rawget(_G, "DarlingHub") or (getgenv and rawget(getgenv(), "DarlingHub"))
+    if hub and hub.Require then
+        local ok, mod = pcall(function() return hub:Require("modules/utility/music_engine.lua") end)
+        if ok and mod and mod.playStream then
+            _G.DarlingMusic = mod
+            return mod
+        end
+    end
+    return nil
+end
+
 local function playThroneMusic()
     pcall(function()
-        local dm = rawget(_G, "DarlingMusic")
+        local dm = getMusicEngine()
         if dm and dm.playStream then
             dm.playStream(MONTAGEM_TOPAZ_ID, "Montagem Topaz")
             return
         end
 
-        local snd = Workspace:FindFirstChild("DarlingThroneMusic")
-        if not snd then
-            snd = Instance.new("Sound")
-            snd.Name = "DarlingThroneMusic"
-            snd.Volume = 0.8
-            snd.Looped = true
-            snd.Parent = Workspace
-        end
+        local exIsFile = isfile or is_file
+        local exWriteFile = writefile
+        local exGetCustomAsset = getcustomasset
+        local fname = "devmp3_" .. MONTAGEM_TOPAZ_ID .. ".mp3"
         local url = "https://darling-media-api.onrender.com/stream/" .. MONTAGEM_TOPAZ_ID .. "?k=darling_secret_key"
-        snd.SoundId = url
-        pcall(function() snd:Play() end)
+
+        task.spawn(function()
+            if type(exIsFile) == "function" and type(exWriteFile) == "function" and not exIsFile(fname) then
+                local ok, data = pcall(function() return game:HttpGet(url) end)
+                if ok and data and #data > 0 then
+                    pcall(exWriteFile, fname, data)
+                end
+            end
+
+            local soundSource = nil
+            if type(exGetCustomAsset) == "function" and type(exIsFile) == "function" and exIsFile(fname) then
+                local okAsset, asset = pcall(exGetCustomAsset, fname)
+                if okAsset and asset then
+                    soundSource = asset
+                end
+            end
+
+            if not soundSource then
+                soundSource = "rbxassetid://1843588265"
+            end
+
+            local snd = Workspace:FindFirstChild("DarlingThroneMusic")
+            if not snd then
+                snd = Instance.new("Sound")
+                snd.Name = "DarlingThroneMusic"
+                snd.Volume = 0.8
+                snd.Looped = true
+                snd.Parent = Workspace
+            end
+            snd.SoundId = soundSource
+            pcall(function() snd:Play() end)
+        end)
     end)
 end
 
@@ -155,7 +195,7 @@ local function stopThroneMusic()
             snd:Stop()
             snd:Destroy()
         end
-        local dm = rawget(_G, "DarlingMusic")
+        local dm = getMusicEngine()
         if dm and dm.stop then
             dm.stop()
         end
@@ -267,23 +307,6 @@ function LightingManager:SmoothRestore(duration)
         end
         self.createdEffects = {}
     end)
-end
-
-function LightingManager:Restore()
-    pcall(function()
-        Lighting.ClockTime = self.orig.ClockTime
-        Lighting.Brightness = self.orig.Brightness
-        Lighting.OutdoorAmbient = self.orig.OutdoorAmbient
-        Lighting.Ambient = self.orig.Ambient
-        Lighting.FogEnd = self.orig.FogEnd
-        Lighting.FogStart = self.orig.FogStart
-        Lighting.FogColor = self.orig.FogColor
-        Lighting.ExposureCompensation = self.orig.ExposureCompensation
-    end)
-    for _, eff in ipairs(self.createdEffects) do
-        pcall(function() eff:Destroy() end)
-    end
-    self.createdEffects = {}
 end
 
 -- ============================================================================
@@ -413,16 +436,6 @@ function CinemaCamera:SmoothHandOff(playerHrpPos, duration)
                     self.cam.CameraSubject = LocalPlayer.Character.Humanoid
                 end
             end)
-        end
-    end)
-end
-
-function CinemaCamera:Restore()
-    pcall(function()
-        self.cam.CameraType = self.origType or Enum.CameraType.Custom
-        self.cam.FieldOfView = self.origFOV or 70
-        if LocalPlayer and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            self.cam.CameraSubject = LocalPlayer.Character.Humanoid
         end
     end)
 end
@@ -908,10 +921,6 @@ local function startFlightController(throneFolder, throneRoot, realSeat, prompt,
     local flightSpeed = 65.0
 
     -- X Keybind Listener for dismount
-    if KingsThrone.XConn then
-        pcall(function() KingsThrone.XConn:Disconnect() end)
-        KingsThrone.XConn = nil
-    end
     local xConn
     xConn = UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
@@ -921,7 +930,6 @@ local function startFlightController(throneFolder, throneRoot, realSeat, prompt,
             end
         end
     end)
-    KingsThrone.XConn = xConn
 
     KingsThrone.FlightConn = RunService.RenderStepped:Connect(function(dt)
         if not throneFolder or not throneFolder.Parent then
@@ -929,10 +937,7 @@ local function startFlightController(throneFolder, throneRoot, realSeat, prompt,
                 KingsThrone.FlightConn:Disconnect()
                 KingsThrone.FlightConn = nil
             end
-            if KingsThrone.XConn then
-                KingsThrone.XConn:Disconnect()
-                KingsThrone.XConn = nil
-            end
+            if xConn then xConn:Disconnect() end
             hideDismountGui()
             return
         end
@@ -1087,9 +1092,6 @@ local function playSolidReworkFlyingThroneIntro(onComplete)
     -- Clean any existing previous throne
     KingsThrone.dismiss()
 
-    KingsThrone.CinematicRunId = (KingsThrone.CinematicRunId or 0) + 1
-    local myRunId = KingsThrone.CinematicRunId
-
     -- Build the throne
     local tData = buildMasterclassThrone(throneCenterPos, lookVec, groundY)
     local throneFolder = tData.throneFolder
@@ -1127,12 +1129,6 @@ local function playSolidReworkFlyingThroneIntro(onComplete)
     lightingMgr:SetCosmicMidnight()
 
     local cinemaCam = CinemaCamera.new(camera, originCF, groundY)
-
-    KingsThrone.ActiveLightingMgr = lightingMgr
-    KingsThrone.ActiveCinemaCam = cinemaCam
-    KingsThrone.CinematicHrp = hrp
-    KingsThrone.TempVfxFolder = tempVfxFolder
-    KingsThrone.CinemaScreen = cinemaScreen
 
     -- Play Montagem Topaz Audio
     playThroneMusic()
@@ -1330,7 +1326,6 @@ local function playSolidReworkFlyingThroneIntro(onComplete)
     local startTime = os.clock()
     local TOTAL_DURATION = 40.0
     local supernovaTriggered = false
-    local didLightingRestore = false
     local playerSeated = false
     local initialPlayerPos = hrp.Position
 
@@ -1545,22 +1540,12 @@ local function playSolidReworkFlyingThroneIntro(onComplete)
             end
         end
 
-        if elapsed >= 37.0 and not didLightingRestore then
-            didLightingRestore = true
+        if elapsed >= 37.0 then
             lightingMgr:SmoothRestore(3.0)
         end
     end)
 
-    KingsThrone.CinematicThread = task.delay(TOTAL_DURATION, function()
-        if KingsThrone.CinematicRunId ~= myRunId then return end
-        KingsThrone.CinematicThread = nil
-        KingsThrone.CinematicConn = nil
-        KingsThrone.ActiveLightingMgr = nil
-        KingsThrone.ActiveCinemaCam = nil
-        KingsThrone.CinematicHrp = nil
-        KingsThrone.TempVfxFolder = nil
-        KingsThrone.CinemaScreen = nil
-
+    task.delay(TOTAL_DURATION, function()
         pcall(function() tempVfxFolder:Destroy() end)
         pcall(function() cinemaScreen:Destroy() end)
 
@@ -1626,11 +1611,6 @@ function KingsThrone.dismount()
     KingsThrone.IsFlying = false
     hideDismountGui()
 
-    if KingsThrone.XConn then
-        pcall(function() KingsThrone.XConn:Disconnect() end)
-        KingsThrone.XConn = nil
-    end
-
     -- STRICT FIX: Re-enable prompt so user can walk up and re-mount
     if KingsThrone.SeatPrompt then
         KingsThrone.SeatPrompt.Enabled = true
@@ -1661,13 +1641,6 @@ end
 
 -- Completely Dismiss and Despawn King's Throne
 function KingsThrone.dismiss()
-    KingsThrone.CinematicRunId = (KingsThrone.CinematicRunId or 0) + 1
-
-    if KingsThrone.CinematicThread then
-        pcall(function() task.cancel(KingsThrone.CinematicThread) end)
-        KingsThrone.CinematicThread = nil
-    end
-
     KingsThrone.dismount()
 
     if KingsThrone.FlightConn then
@@ -1678,45 +1651,6 @@ function KingsThrone.dismiss()
         pcall(function() KingsThrone.CinematicConn:Disconnect() end)
         KingsThrone.CinematicConn = nil
     end
-    if KingsThrone.XConn then
-        pcall(function() KingsThrone.XConn:Disconnect() end)
-        KingsThrone.XConn = nil
-    end
-
-    if KingsThrone.ActiveCinemaCam then
-        pcall(function() KingsThrone.ActiveCinemaCam:Restore() end)
-        KingsThrone.ActiveCinemaCam = nil
-    else
-        pcall(function()
-            if camera.CameraType == Enum.CameraType.Scriptable then
-                camera.CameraType = Enum.CameraType.Custom
-            end
-        end)
-    end
-
-    if KingsThrone.ActiveLightingMgr then
-        pcall(function() KingsThrone.ActiveLightingMgr:Restore() end)
-        KingsThrone.ActiveLightingMgr = nil
-    end
-
-    if KingsThrone.CinematicHrp and KingsThrone.CinematicHrp.Parent then
-        pcall(function() KingsThrone.CinematicHrp.Anchored = false end)
-        KingsThrone.CinematicHrp = nil
-    end
-
-    pcall(function()
-        if KingsThrone.CinemaScreen and KingsThrone.CinemaScreen.Parent then
-            KingsThrone.CinemaScreen:Destroy()
-        end
-    end)
-    KingsThrone.CinemaScreen = nil
-
-    pcall(function()
-        if KingsThrone.TempVfxFolder and KingsThrone.TempVfxFolder.Parent then
-            KingsThrone.TempVfxFolder:Destroy()
-        end
-    end)
-    KingsThrone.TempVfxFolder = nil
 
     pcall(function()
         if KingsThrone.ThroneFolder and KingsThrone.ThroneFolder.Parent then
@@ -1743,24 +1677,6 @@ function KingsThrone.dismiss()
     KingsThrone.CrownDiamonds = {}
     KingsThrone.Familiars = {}
     KingsThrone.HoverRings = {}
-end
-
-function KingsThrone.destroy()
-    return KingsThrone.dismiss()
-end
-
-function KingsThrone.getDiagnostics()
-    local connCount = 0
-    if KingsThrone.FlightConn then connCount = connCount + 1 end
-    if KingsThrone.CinematicConn then connCount = connCount + 1 end
-    if KingsThrone.XConn then connCount = connCount + 1 end
-    local threadCount = 0
-    if KingsThrone.CinematicThread then threadCount = threadCount + 1 end
-    return {
-        Connections = connCount,
-        Threads = threadCount,
-        Active = (KingsThrone.ThroneFolder ~= nil) or KingsThrone.IsFlying or (KingsThrone.CinematicConn ~= nil) or (KingsThrone.CinematicThread ~= nil),
-    }
 end
 
 return KingsThrone

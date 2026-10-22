@@ -93,9 +93,6 @@ function RaceAwakening.setAutoV3(state)
             end
             RaceAwakening.V3Thread = nil
         end)
-    elseif not state and RaceAwakening.V3Thread then
-        pcall(function() task.cancel(RaceAwakening.V3Thread) end)
-        RaceAwakening.V3Thread = nil
     end
 end
 
@@ -124,9 +121,6 @@ function RaceAwakening.setAutoV4(state)
             end
             RaceAwakening.V4Thread = nil
         end)
-    elseif not state and RaceAwakening.V4Thread then
-        pcall(function() task.cancel(RaceAwakening.V4Thread) end)
-        RaceAwakening.V4Thread = nil
     end
 end
 
@@ -176,24 +170,6 @@ function RaceAwakening.setAntiStun(state)
         pcall(function() RaceAwakening.AntiStunConnection:Disconnect() end)
         RaceAwakening.AntiStunConnection = nil
     end
-end
-
-function RaceAwakening.destroy()
-    RaceAwakening.setAutoV3(false)
-    RaceAwakening.setAutoV4(false)
-    RaceAwakening.setAntiStun(false)
-end
-
-function RaceAwakening.getDiagnostics()
-    local connCount = RaceAwakening.AntiStunConnection and 1 or 0
-    local threadCount = 0
-    if RaceAwakening.V3Thread then threadCount = threadCount + 1 end
-    if RaceAwakening.V4Thread then threadCount = threadCount + 1 end
-    return {
-        Connections = connCount,
-        Threads = threadCount,
-        Active = RaceAwakening.AutoV3 or RaceAwakening.AutoV4 or RaceAwakening.AntiStun,
-    }
 end
 
 return RaceAwakening

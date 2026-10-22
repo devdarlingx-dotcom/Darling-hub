@@ -147,10 +147,6 @@ end
 
 function FruitsM1.disable()
     FruitsM1.Enabled = false
-    if FruitsM1.Thread then
-        pcall(function() task.cancel(FruitsM1.Thread) end)
-        FruitsM1.Thread = nil
-    end
     if FruitsM1.Widget then
         FruitsM1.Widget:Set(false, true)
         FruitsM1.Widget:SetVisible(false)
@@ -170,23 +166,6 @@ function FruitsM1.setFloatingVisible(visible)
     if FruitsM1.Widget then
         FruitsM1.Widget:SetVisible(visible)
     end
-end
-
-function FruitsM1.destroy()
-    FruitsM1.disable()
-    if FruitsM1.Widget then
-        pcall(function() FruitsM1.Widget:Destroy() end)
-        FruitsM1.Widget = nil
-    end
-end
-
-function FruitsM1.getDiagnostics()
-    local threadCount = FruitsM1.Thread and 1 or 0
-    return {
-        Connections = 0,
-        Threads = threadCount,
-        Active = FruitsM1.Enabled,
-    }
 end
 
 return FruitsM1

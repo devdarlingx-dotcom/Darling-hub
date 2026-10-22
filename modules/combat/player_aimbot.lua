@@ -114,16 +114,4 @@ function PlayerAimbot.isEnabled()
     return core and core.PlayerAimEnabled or false
 end
 
-PlayerAimbot.destroy = PlayerAimbot.disable
-
-function PlayerAimbot.getDiagnostics()
-    local core = getCore()
-    return {
-        Name = "PlayerAimbot",
-        Active = core and core.PlayerAimEnabled or false,
-        Connections = 0,
-        Threads = 0,
-    }
-end
-
 return PlayerAimbot

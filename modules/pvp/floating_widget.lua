@@ -63,14 +63,8 @@ function FloatingWidget.create(config)
     local screenGui = getSharedScreenGui()
 
     -- Remove any previous widget with the same ID
-    for i = #FloatingWidget.AllWidgets, 1, -1 do
-        local existing = FloatingWidget.AllWidgets[i]
-        if existing and existing.Id == id then
-            pcall(function() existing:Destroy() end)
-        end
-    end
     local oldPill = screenGui:FindFirstChild(id)
-    if oldPill then pcall(function() oldPill:Destroy() end) end
+    if oldPill then oldPill:Destroy() end
 
     -- Compact Mobile-Friendly Frame Container
     local pill = Instance.new("TextButton")
@@ -283,39 +277,8 @@ function FloatingWidget:Destroy()
     end
     table.clear(self.Connections)
     if self.Pill and self.Pill.Parent then
-        pcall(function() self.Pill:Destroy() end)
+        self.Pill:Destroy()
     end
-    self.Pill = nil
-    local idx = table.find(FloatingWidget.AllWidgets, self)
-    if idx then
-        table.remove(FloatingWidget.AllWidgets, idx)
-    end
-end
-
-function FloatingWidget.destroy()
-    for i = #FloatingWidget.AllWidgets, 1, -1 do
-        local w = FloatingWidget.AllWidgets[i]
-        if w then
-            pcall(function() w:Destroy() end)
-        end
-    end
-    table.clear(FloatingWidget.AllWidgets)
-    if SharedScreenGui and SharedScreenGui.Parent then
-        pcall(function() SharedScreenGui:Destroy() end)
-    end
-    SharedScreenGui = nil
-end
-
-function FloatingWidget.getDiagnostics()
-    local connCount = 0
-    for _, w in ipairs(FloatingWidget.AllWidgets) do
-        connCount = connCount + #w.Connections
-    end
-    return {
-        Connections = connCount,
-        Threads = 0,
-        Active = #FloatingWidget.AllWidgets > 0,
-    }
 end
 
 return FloatingWidget

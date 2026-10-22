@@ -59,14 +59,6 @@ local MovementEngine = {
 function MovementEngine.setWalkSpeed(enabled, value)
     MovementEngine.WalkSpeedEnabled = enabled
     if value then MovementEngine.WalkSpeedValue = value end
-    if MovementEngine.updateSteppedState then MovementEngine.updateSteppedState() end
-    if not enabled then
-        local char = LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = 16
-        end
-    end
 end
 
 -- ========================================================================
@@ -120,7 +112,6 @@ function MovementEngine.startFly()
     if not hrp or not hum then return end
 
     MovementEngine.FlyEnabled = true
-    if MovementEngine.updateSteppedState then MovementEngine.updateSteppedState() end
 
     local cam = Workspace.CurrentCamera or Camera
 
@@ -166,7 +157,6 @@ end
 
 function MovementEngine.stopFly()
     MovementEngine.FlyEnabled = false
-    if MovementEngine.updateSteppedState then MovementEngine.updateSteppedState() end
     if MovementEngine.FlyBodyVelocity and MovementEngine.FlyBodyVelocity.Parent then
         MovementEngine.FlyBodyVelocity:Destroy()
     end
@@ -202,76 +192,31 @@ end
 -- ========================================================================
 -- 3. NOCLIP SYSTEM
 -- ========================================================================
-local noclipParts = {}
-local noclipDescAddedConn = nil
-local noclipDescRemovingConn = nil
-
-local function rebuildNoclipParts(char)
-    table.clear(noclipParts)
-    if not char then return end
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            table.insert(noclipParts, part)
-        end
-    end
-end
-
-local function cleanupNoclipConns()
-    if noclipDescAddedConn then
-        pcall(function() noclipDescAddedConn:Disconnect() end)
-        noclipDescAddedConn = nil
-    end
-    if noclipDescRemovingConn then
-        pcall(function() noclipDescRemovingConn:Disconnect() end)
-        noclipDescRemovingConn = nil
-    end
-end
-
 function MovementEngine.setNoclip(state)
     MovementEngine.NoclipEnabled = state
-    if state then
-        cleanupNoclipConns()
-        local char = LocalPlayer.Character
-        rebuildNoclipParts(char)
-        if char then
-            noclipDescAddedConn = char.DescendantAdded:Connect(function(desc)
-                if desc:IsA("BasePart") then
-                    table.insert(noclipParts, desc)
-                end
-            end)
-            noclipDescRemovingConn = char.DescendantRemoving:Connect(function(desc)
-                if desc:IsA("BasePart") then
-                    local idx = table.find(noclipParts, desc)
-                    if idx then table.remove(noclipParts, idx) end
-                end
-            end)
-        end
-
-        if not MovementEngine.NoclipConn then
-            MovementEngine.NoclipConn = RunService.Stepped:Connect(function()
-                if not MovementEngine.NoclipEnabled then return end
-                for i = #noclipParts, 1, -1 do
-                    local part = noclipParts[i]
-                    if part and part.Parent then
+    if state and not MovementEngine.NoclipConn then
+        MovementEngine.NoclipConn = RunService.Stepped:Connect(function()
+            if not MovementEngine.NoclipEnabled then return end
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
                         part.CanCollide = false
-                    else
-                        table.remove(noclipParts, i)
                     end
                 end
-            end)
-        end
-    else
-        cleanupNoclipConns()
-        if MovementEngine.NoclipConn then
-            pcall(function() MovementEngine.NoclipConn:Disconnect() end)
-            MovementEngine.NoclipConn = nil
-        end
-        for _, part in ipairs(noclipParts) do
-            if part and part.Parent and part.Name ~= "HumanoidRootPart" then
-                pcall(function() part.CanCollide = true end)
+            end
+        end)
+    elseif not state and MovementEngine.NoclipConn then
+        pcall(function() MovementEngine.NoclipConn:Disconnect() end)
+        MovementEngine.NoclipConn = nil
+        local char = LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.CanCollide = true
+                end
             end
         end
-        table.clear(noclipParts)
     end
 end
 
@@ -443,34 +388,7 @@ end
 -- ========================================================================
 -- GLOBAL RUNTIME TICK & INPUT HOOKS
 -- ========================================================================
-function MovementEngine.updateSteppedState()
-    local needsStepped = MovementEngine.WalkSpeedEnabled or MovementEngine.FlyEnabled
-    if needsStepped and not MovementEngine.SteppedConn then
-        MovementEngine.SteppedConn = RunService.Stepped:Connect(function()
-            -- WalkSpeed Bypass Tick
-            if MovementEngine.WalkSpeedEnabled and LocalPlayer.Character then
-                local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hum and hrp then
-                    hum.WalkSpeed = MovementEngine.WalkSpeedValue
-                    if hum.MoveDirection.Magnitude > 0 and MovementEngine.WalkSpeedValue > 20 then
-                        hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (MovementEngine.WalkSpeedValue / 100))
-                    end
-                end
-            end
-
-            -- Fly Tick
-            if MovementEngine.FlyEnabled then
-                updateFlyMovement()
-            end
-        end)
-    elseif not needsStepped and MovementEngine.SteppedConn then
-        pcall(function() MovementEngine.SteppedConn:Disconnect() end)
-        MovementEngine.SteppedConn = nil
-    end
-end
-
-MovementEngine.InputBeganConn = UserInputService.InputBegan:Connect(function(input, gpe)
+UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == MovementEngine.FlyKeybind then
         MovementEngine.toggleFly()
@@ -488,7 +406,7 @@ MovementEngine.InputBeganConn = UserInputService.InputBegan:Connect(function(inp
     if input.KeyCode == Enum.KeyCode.LeftShift then flyKeys.LeftShift = true end
 end)
 
-MovementEngine.InputEndedConn = UserInputService.InputEnded:Connect(function(input, gpe)
+UserInputService.InputEnded:Connect(function(input, gpe)
     if input.KeyCode == Enum.KeyCode.W then flyKeys.W = false end
     if input.KeyCode == Enum.KeyCode.A then flyKeys.A = false end
     if input.KeyCode == Enum.KeyCode.S then flyKeys.S = false end
@@ -497,22 +415,26 @@ MovementEngine.InputEndedConn = UserInputService.InputEnded:Connect(function(inp
     if input.KeyCode == Enum.KeyCode.LeftShift then flyKeys.LeftShift = false end
 end)
 
-MovementEngine.CharAddedConn = LocalPlayer.CharacterAdded:Connect(function(newChar)
-    if MovementEngine.NoclipEnabled then
-        cleanupNoclipConns()
-        rebuildNoclipParts(newChar)
-        if newChar then
-            noclipDescAddedConn = newChar.DescendantAdded:Connect(function(desc)
-                if desc:IsA("BasePart") then table.insert(noclipParts, desc) end
-            end)
-            noclipDescRemovingConn = newChar.DescendantRemoving:Connect(function(desc)
-                if desc:IsA("BasePart") then
-                    local idx = table.find(noclipParts, desc)
-                    if idx then table.remove(noclipParts, idx) end
-                end
-            end)
+MovementEngine.SteppedConn = RunService.Stepped:Connect(function()
+    -- WalkSpeed Bypass Tick
+    if MovementEngine.WalkSpeedEnabled and LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hum and hrp then
+            hum.WalkSpeed = MovementEngine.WalkSpeedValue
+            if hum.MoveDirection.Magnitude > 0 and MovementEngine.WalkSpeedValue > 20 then
+                hrp.CFrame = hrp.CFrame + (hum.MoveDirection * (MovementEngine.WalkSpeedValue / 100))
+            end
         end
     end
+
+    -- Fly Tick
+    if MovementEngine.FlyEnabled then
+        updateFlyMovement()
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     if MovementEngine.WalkOnWaterEnabled then
         pcall(function() newChar:SetAttribute("WaterWalking", true) end)
@@ -524,68 +446,5 @@ MovementEngine.CharAddedConn = LocalPlayer.CharacterAdded:Connect(function(newCh
         end)
     end
 end)
-
-function MovementEngine.destroy()
-    MovementEngine.setWalkSpeed(false)
-    MovementEngine.stopFly()
-    MovementEngine.setNoclip(false)
-    MovementEngine.setDashDistance(false)
-    MovementEngine.setInfiniteJump(false)
-    MovementEngine.setSuperJump(false)
-    MovementEngine.setWalkOnWater(false)
-
-    if MovementEngine.SteppedConn then
-        pcall(function() MovementEngine.SteppedConn:Disconnect() end)
-        MovementEngine.SteppedConn = nil
-    end
-    if MovementEngine.InputBeganConn then
-        pcall(function() MovementEngine.InputBeganConn:Disconnect() end)
-        MovementEngine.InputBeganConn = nil
-    end
-    if MovementEngine.InputEndedConn then
-        pcall(function() MovementEngine.InputEndedConn:Disconnect() end)
-        MovementEngine.InputEndedConn = nil
-    end
-    if MovementEngine.CharAddedConn then
-        pcall(function() MovementEngine.CharAddedConn:Disconnect() end)
-        MovementEngine.CharAddedConn = nil
-    end
-    if MovementEngine.FlyWidget then
-        pcall(function() MovementEngine.FlyWidget:Destroy() end)
-        MovementEngine.FlyWidget = nil
-    end
-    if MovementEngine.SuperJumpWidget then
-        pcall(function() MovementEngine.SuperJumpWidget:Destroy() end)
-        MovementEngine.SuperJumpWidget = nil
-    end
-    if MovementEngine.WaterPlatform and MovementEngine.WaterPlatform.Parent then
-        pcall(function() MovementEngine.WaterPlatform:Destroy() end)
-        MovementEngine.WaterPlatform = nil
-    end
-end
-
-function MovementEngine.getDiagnostics()
-    local connCount = 0
-    if MovementEngine.SteppedConn then connCount = connCount + 1 end
-    if MovementEngine.InputBeganConn then connCount = connCount + 1 end
-    if MovementEngine.InputEndedConn then connCount = connCount + 1 end
-    if MovementEngine.CharAddedConn then connCount = connCount + 1 end
-    if MovementEngine.NoclipConn then connCount = connCount + 1 end
-    if MovementEngine.JumpRequestConn then connCount = connCount + 1 end
-    if noclipDescAddedConn then connCount = connCount + 1 end
-    if noclipDescRemovingConn then connCount = connCount + 1 end
-
-    local threadCount = 0
-    if MovementEngine.DashLoop then threadCount = threadCount + 1 end
-    if MovementEngine.WaterLoop then threadCount = threadCount + 1 end
-
-    local isActive = MovementEngine.WalkSpeedEnabled or MovementEngine.FlyEnabled or MovementEngine.NoclipEnabled or MovementEngine.DashDistanceEnabled or MovementEngine.InfiniteJumpEnabled or MovementEngine.SuperJumpEnabled or MovementEngine.WalkOnWaterEnabled
-
-    return {
-        Connections = connCount,
-        Threads = threadCount,
-        Active = isActive,
-    }
-end
 
 return MovementEngine
