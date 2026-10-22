@@ -28,6 +28,9 @@ local DarlingSkins = {
         HotbarCache = {},
         Listeners = {},
         CustomAssetId = "",
+        AllSlotsCache = {},
+        AllSlotsListeners = {},
+        GlobalSkin = nil,
     },
     Character = {
         Enabled = false,
@@ -337,13 +340,138 @@ end
 -- ============================================================================
 -- SECTION 2: TOOL SKINS & HOTBAR
 -- ============================================================================
+local CATEGORY_DEFAULT_ITEMS = {
+    Fruits = "Bomb-Bomb",
+    Swords = "Katana",
+    Guns = "Slingshot",
+    Melee = "Combat"
+}
+
+local function scanPlayerItem(cat)
+    local targetTip = DarlingSkins.CategoryTips[cat]
+    local char = LocalPlayer.Character
+    if char then
+        for _, c in ipairs(char:GetChildren()) do
+            if c:IsA("Tool") then
+                if c.ToolTip == targetTip or tostring(c:GetAttribute("WeaponType")) == targetTip or tostring(c:GetAttribute("ItemType")) == targetTip then
+                    return c.Name, "EQUIPPED"
+                end
+            end
+        end
+    end
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if bp then
+        for _, c in ipairs(bp:GetChildren()) do
+            if c:IsA("Tool") then
+                if c.ToolTip == targetTip or tostring(c:GetAttribute("WeaponType")) == targetTip or tostring(c:GetAttribute("ItemType")) == targetTip then
+                    return c.Name, "IN BAG"
+                end
+            end
+        end
+    end
+    return "None", "None"
+end
+
+function DarlingSkins.getTargetItem(cat)
+    cat = cat or DarlingSkins.Tools.SelectedCategory or "Fruits"
+    local det, _ = scanPlayerItem(cat)
+    if det ~= "None" then return det end
+    return CATEGORY_DEFAULT_ITEMS[cat] or "Item"
+end
+
+local function getSlotIcon(slot)
+    if not slot then return nil end
+    for _, name in ipairs({"Icon", "ItemIcon", "ToolIcon", "SkillIcon", "ActionIcon", "FruitIcon"}) do
+        local child = slot:FindFirstChild(name)
+        if child and (child:IsA("ImageLabel") or child:IsA("ImageButton")) and child.Image ~= "" then
+            return child
+        end
+    end
+    local imgChild = slot:FindFirstChild("Image")
+    if imgChild and (imgChild:IsA("ImageLabel") or imgChild:IsA("ImageButton")) and imgChild.Image ~= "" then
+        return imgChild
+    end
+    local candidates = {}
+    for _, desc in ipairs(slot:GetDescendants()) do
+        if (desc:IsA("ImageLabel") or desc:IsA("ImageButton")) and desc.Image ~= "" then
+            local n = string.lower(desc.Name)
+            local isBg = (n:find("bg") or n:find("back") or n:find("frame") or n:find("border") or n:find("shadow") or n:find("bar") or n:find("cooldown") or n:find("key") or n:find("outline"))
+            if not isBg then
+                table.insert(candidates, desc)
+            end
+        end
+    end
+    if #candidates > 0 then
+        table.sort(candidates, function(a, b)
+            return (a.ZIndex or 1) > (b.ZIndex or 1)
+        end)
+        return candidates[1]
+    end
+    for _, desc in ipairs(slot:GetDescendants()) do
+        if (desc:IsA("ImageLabel") or desc:IsA("ImageButton")) and desc.Image ~= "" then
+            return desc
+        end
+    end
+    return slot:FindFirstChildOfClass("ImageLabel")
+end
+
+local function getHotbarContainers()
+    local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if not pGui then return {} end
+    local containers = {}
+    local function addIfValid(c)
+        if c and c:IsA("GuiObject") and not table.find(containers, c) then
+            table.insert(containers, c)
+        end
+    end
+
+    local bpGui = pGui:FindFirstChild("Backpack")
+    if bpGui then
+        local hotbar = bpGui:FindFirstChild("Hotbar")
+        if hotbar then
+            addIfValid(hotbar:FindFirstChild("Container"))
+            addIfValid(hotbar)
+        end
+        local inv = bpGui:FindFirstChild("Inventory")
+        if inv then
+            addIfValid(inv:FindFirstChild("Container"))
+            addIfValid(inv)
+        end
+    end
+
+    local mainGui = pGui:FindFirstChild("Main")
+    if mainGui then
+        local hotbar = mainGui:FindFirstChild("Hotbar")
+        if hotbar then
+            addIfValid(hotbar:FindFirstChild("Container"))
+            addIfValid(hotbar)
+        end
+        local bottom = mainGui:FindFirstChild("BottomBar")
+        if bottom then
+            addIfValid(bottom:FindFirstChild("Container"))
+            addIfValid(bottom)
+        end
+        local inv = mainGui:FindFirstChild("Inventory")
+        if inv then
+            addIfValid(inv:FindFirstChild("Container"))
+            addIfValid(inv)
+        end
+    end
+
+    return containers
+end
+
 local function findHotbarSlot(cat, itemName)
     cat = cat or DarlingSkins.Tools.SelectedCategory or "Fruits"
+    if not itemName or itemName == "" then
+        itemName = DarlingSkins.getTargetItem(cat)
+    end
     local pGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
     if not pGui then return nil, nil end
 
-    local targetLower = itemName and string.lower(itemName) or ""
+    local targetLower = string.lower(itemName or "")
     local targetSlotIdx = (cat == "Fruits" and 2) or (cat == "Swords" and 3) or (cat == "Guns" and 4) or 1
+    local targetTip = string.lower(DarlingSkins.CategoryTips[cat] or "")
 
     local function checkContainer(container)
         if not container then return nil, nil end
@@ -352,23 +480,33 @@ local function findHotbarSlot(cat, itemName)
             if slot:IsA("GuiObject") then
                 table.insert(slots, slot)
                 local matched = false
-                local itemAttr = slot:GetAttribute("ItemName") or slot:GetAttribute("ToolName")
-                if itemAttr and targetLower ~= "" and string.lower(tostring(itemAttr)):find(targetLower, 1, true) then
-                    matched = true
-                end
-                local title = slot:FindFirstChild("Title")
-                if title and title:IsA("TextLabel") and targetLower ~= "" then
-                    local t1 = string.lower(title.Text)
-                    if t1:find(targetLower, 1, true) then
+                for _, attr in ipairs({"ItemName", "ToolName", "WeaponType", "ItemType", "Name"}) do
+                    local val = slot:GetAttribute(attr)
+                    if val and targetLower ~= "" and string.lower(tostring(val)):find(targetLower, 1, true) then
                         matched = true
+                        break
                     end
                 end
-                if targetLower ~= "" and string.lower(slot.Name):find(targetLower, 1, true) then
+                if not matched then
+                    for _, child in ipairs(slot:GetDescendants()) do
+                        if child:IsA("TextLabel") and child.Text ~= "" then
+                            local tLower = string.lower(child.Text)
+                            if targetLower ~= "" and tLower:find(targetLower, 1, true) then
+                                matched = true
+                                break
+                            elseif targetTip ~= "" and tLower:find(targetTip, 1, true) then
+                                matched = true
+                                break
+                            end
+                        end
+                    end
+                end
+                if not matched and targetLower ~= "" and string.lower(slot.Name):find(targetLower, 1, true) then
                     matched = true
                 end
                 if matched then
-                    local img = slot:FindFirstChild("Image") or slot:FindFirstChildOfClass("ImageLabel")
-                    if img and img:IsA("ImageLabel") then
+                    local img = getSlotIcon(slot)
+                    if img then
                         return img, slot
                     end
                 end
@@ -378,35 +516,18 @@ local function findHotbarSlot(cat, itemName)
         table.sort(slots, function(a, b) return (a.LayoutOrder or 0) < (b.LayoutOrder or 0) end)
         if slots[targetSlotIdx] then
             local s = slots[targetSlotIdx]
-            local img = s:FindFirstChild("Image") or s:FindFirstChildOfClass("ImageLabel")
-            if img and img:IsA("ImageLabel") then
+            local img = getSlotIcon(s)
+            if img then
                 return img, s
             end
         end
         return nil, nil
     end
 
-    local bpGui = pGui:FindFirstChild("Backpack")
-    if bpGui then
-        local hotbar = bpGui:FindFirstChild("Hotbar")
-        if hotbar then
-            local img, slot = checkContainer(hotbar:FindFirstChild("Container") or hotbar)
-            if img then return img, slot end
-        end
-    end
-
-    local mainGui = pGui:FindFirstChild("Main")
-    if mainGui then
-        local hotbar = mainGui:FindFirstChild("Hotbar")
-        if hotbar then
-            local img, slot = checkContainer(hotbar:FindFirstChild("Container") or hotbar)
-            if img then return img, slot end
-        end
-        local bottom = mainGui:FindFirstChild("BottomBar")
-        if bottom then
-            local img, slot = checkContainer(bottom:FindFirstChild("Container") or bottom)
-            if img then return img, slot end
-        end
+    local containers = getHotbarContainers()
+    for _, cont in ipairs(containers) do
+        local img, slot = checkContainer(cont)
+        if img then return img, slot end
     end
 
     return nil, nil
@@ -427,8 +548,8 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
         skin = { Name = tostring(skinName), Color = col }
     end
 
-    -- Recolor hotbar slot icon specifically for this category
-    local img, slot = findHotbarSlot(category)
+    local targetItemName = DarlingSkins.getTargetItem(category)
+    local img, slot = findHotbarSlot(category, targetItemName)
     if img then
         if not DarlingSkins.Tools.HotbarCache[category] then
             DarlingSkins.Tools.HotbarCache[category] = {
@@ -454,7 +575,7 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
         end)
     end
 
-    -- Recolor equipped and backpack tools matching this category only
+    -- Recolor equipped and backpack tools matching this category
     pcall(function()
         local targetTip = DarlingSkins.CategoryTips[category]
         local tools = {}
@@ -463,14 +584,14 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
 
         if char then
             for _, c in ipairs(char:GetChildren()) do
-                if c:IsA("Tool") and (c.ToolTip == targetTip or tostring(c:GetAttribute("WeaponType")) == targetTip or tostring(c:GetAttribute("ItemType")) == targetTip) then
+                if c:IsA("Tool") and (c.ToolTip == targetTip or tostring(c:GetAttribute("WeaponType")) == targetTip or tostring(c:GetAttribute("ItemType")) == targetTip or (targetItemName and string.lower(c.Name) == string.lower(targetItemName))) then
                     table.insert(tools, c)
                 end
             end
         end
         if bp then
             for _, c in ipairs(bp:GetChildren()) do
-                if c:IsA("Tool") and (c.ToolTip == targetTip or tostring(c:GetAttribute("WeaponType")) == targetTip or tostring(c:GetAttribute("ItemType")) == targetTip) then
+                if c:IsA("Tool") and (c.ToolTip == targetTip or tostring(c:GetAttribute("WeaponType")) == targetTip or tostring(c:GetAttribute("ItemType")) == targetTip or (targetItemName and string.lower(c.Name) == string.lower(targetItemName))) then
                     table.insert(tools, c)
                 end
             end
@@ -507,6 +628,99 @@ function DarlingSkins.applyToolSkin(category, skinName, customColor)
     return true
 end
 
+function DarlingSkins.recolorAllHotbarSlots(skinName, customColor)
+    local skin = nil
+    if typeof(skinName) == "table" and skinName.Color then
+        skin = skinName
+    else
+        for _, s in ipairs(DarlingSkins.SkinCatalog) do
+            if s.Name == skinName then skin = s break end
+        end
+    end
+    if not skin then
+        local col = customColor or DarlingSkins.Presets[skinName] or Color3.fromRGB(255, 105, 180)
+        skin = { Name = tostring(skinName), Color = col }
+    end
+
+    local containers = getHotbarContainers()
+    local coloredCount = 0
+
+    for _, cont in ipairs(containers) do
+        for _, slot in ipairs(cont:GetChildren()) do
+            if slot:IsA("GuiObject") then
+                local img = getSlotIcon(slot)
+                if img then
+                    if not DarlingSkins.Tools.AllSlotsCache[img] then
+                        DarlingSkins.Tools.AllSlotsCache[img] = {
+                            ImageColor3 = img.ImageColor3,
+                            Image = img.Image
+                        }
+                    end
+                    img.ImageColor3 = skin.Color
+                    if DarlingSkins.Tools.CustomAssetId ~= "" then
+                        pcall(function() img.Image = DarlingSkins.Tools.CustomAssetId end)
+                    end
+                    if DarlingSkins.Tools.AllSlotsListeners[img] then
+                        pcall(function() DarlingSkins.Tools.AllSlotsListeners[img]:Disconnect() end)
+                    end
+                    DarlingSkins.Tools.AllSlotsListeners[img] = img:GetPropertyChangedSignal("ImageColor3"):Connect(function()
+                        if DarlingSkins.Tools.GlobalSkin and DarlingSkins.Tools.GlobalSkin.Color then
+                            if img.ImageColor3 ~= DarlingSkins.Tools.GlobalSkin.Color then
+                                img.ImageColor3 = DarlingSkins.Tools.GlobalSkin.Color
+                            end
+                        end
+                    end)
+                    coloredCount = coloredCount + 1
+                end
+            end
+        end
+    end
+
+    pcall(function()
+        local char = LocalPlayer.Character
+        local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+        local allTools = {}
+        if char then
+            for _, c in ipairs(char:GetChildren()) do
+                if c:IsA("Tool") then table.insert(allTools, c) end
+            end
+        end
+        if bp then
+            for _, c in ipairs(bp:GetChildren()) do
+                if c:IsA("Tool") then table.insert(allTools, c) end
+            end
+        end
+        for _, tool in ipairs(allTools) do
+            for _, part in ipairs(tool:GetDescendants()) do
+                if part:IsA("SpecialMesh") then
+                    if part.TextureId ~= "" then
+                        local minLum = 0.32
+                        local isDk = (skin.Color.R < 0.2 and skin.Color.G < 0.2 and skin.Color.B < 0.2)
+                        local vR = math.clamp(skin.Color.R * 0.7 + (isDk and minLum or 0), 0.15, 1)
+                        local vG = math.clamp(skin.Color.G * 0.7 + (isDk and minLum or 0), 0.15, 1)
+                        local vB = math.clamp(skin.Color.B * 0.7 + (isDk and minLum or 0), 0.15, 1)
+                        part.VertexColor = Vector3.new(vR, vG, vB)
+                    else
+                        part.VertexColor = Vector3.new(skin.Color.R, skin.Color.G, skin.Color.B)
+                    end
+                elseif part:IsA("MeshPart") then
+                    if part.TextureID ~= "" then
+                        local isDk = (skin.Color.R < 0.2 and skin.Color.G < 0.2 and skin.Color.B < 0.2)
+                        part.Color = isDk and Color3.fromRGB(80, 80, 90) or skin.Color
+                    else
+                        part.Color = skin.Color
+                    end
+                elseif part:IsA("BasePart") then
+                    part.Color = skin.Color
+                end
+            end
+        end
+    end)
+
+    DarlingSkins.Tools.GlobalSkin = skin
+    return coloredCount
+end
+
 function DarlingSkins.resetCategoryToolSkin(category)
     category = category or DarlingSkins.Tools.SelectedCategory or "Fruits"
     if DarlingSkins.Tools.Listeners[category] then
@@ -529,6 +743,20 @@ function DarlingSkins.resetAllToolSkins()
     for cat, _ in pairs(DarlingSkins.CategoryTips) do
         DarlingSkins.resetCategoryToolSkin(cat)
     end
+    for img, conn in pairs(DarlingSkins.Tools.AllSlotsListeners or {}) do
+        pcall(function() conn:Disconnect() end)
+    end
+    DarlingSkins.Tools.AllSlotsListeners = {}
+    for img, cached in pairs(DarlingSkins.Tools.AllSlotsCache or {}) do
+        if img and img.Parent then
+            pcall(function()
+                img.ImageColor3 = cached.ImageColor3
+                img.Image = cached.Image
+            end)
+        end
+    end
+    DarlingSkins.Tools.AllSlotsCache = {}
+    DarlingSkins.Tools.GlobalSkin = nil
 end
 
 -- ============================================================================

@@ -1938,7 +1938,7 @@ function Transcendence.spawnDirect()
                 return
             end
 
-            if Transcendence.IsRiding then return end
+            if Transcendence.IsRiding or Transcendence.IsHidden then return end
 
             local now = tick()
             local targetFollowPos = cHrp.Position + cHrp.CFrame.RightVector * 28 + cHrp.CFrame.LookVector * 8 + Vector3.new(0, 38.0 + math.sin(now * 2.2) * 1.8, 0)
@@ -2258,6 +2258,69 @@ function Transcendence.toggleMount()
     else
         return Transcendence.mount()
     end
+end
+
+function Transcendence.setHidden(hidden)
+    Transcendence.IsHidden = (hidden == true)
+    if Transcendence.IsHidden then
+        if Transcendence.IsRiding then
+            Transcendence.dismount()
+        end
+        if Transcendence.DragonFolder then
+            pcall(function()
+                for _, obj in ipairs(Transcendence.DragonFolder:GetDescendants()) do
+                    if obj:IsA("BasePart") then
+                        obj.Transparency = 1
+                    elseif obj:IsA("Light") or obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("ProximityPrompt") then
+                        obj.Enabled = false
+                    end
+                end
+            end)
+        end
+    else
+        if Transcendence.DragonFolder and Transcendence.DragonBody then
+            pcall(function()
+                Transcendence.DragonBody.Transparency = 0.05
+                for _, sData in ipairs(Transcendence.DragonSpines or {}) do
+                    if sData.part then sData.part.Transparency = 0.15 end
+                end
+                for _, eData in ipairs(Transcendence.DragonEscorts or {}) do
+                    if eData.part then eData.part.Transparency = 0.15 end
+                end
+                for _, obj in ipairs(Transcendence.DragonFolder:GetDescendants()) do
+                    if obj:IsA("Light") or obj:IsA("ParticleEmitter") or obj:IsA("Beam") then
+                        obj.Enabled = true
+                    elseif obj:IsA("ProximityPrompt") then
+                        obj.Enabled = not Transcendence.IsRiding
+                    end
+                end
+            end)
+        end
+    end
+    return Transcendence.IsHidden
+end
+
+function Transcendence.toggleHidden()
+    return Transcendence.setHidden(not Transcendence.IsHidden)
+end
+
+function Transcendence.dismiss()
+    if Transcendence.IsRiding then
+        Transcendence.dismount()
+    end
+    if Transcendence.CompanionConn then
+        pcall(function() Transcendence.CompanionConn:Disconnect() end)
+        Transcendence.CompanionConn = nil
+    end
+    if Transcendence.DragonFolder and Transcendence.DragonFolder.Parent then
+        pcall(function() Transcendence.DragonFolder:Destroy() end)
+    end
+    Transcendence.DragonFolder = nil
+    Transcendence.DragonBody = nil
+    Transcendence.DragonSaddle = nil
+    Transcendence.DragonSpines = {}
+    Transcendence.DragonEscorts = {}
+    return true
 end
 
 return Transcendence

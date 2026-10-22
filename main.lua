@@ -2203,6 +2203,23 @@ SkinsTab:Button({
 })
 
 SkinsTab:Button({
+    Title = "Apply Skin to All Hotbar Slots & Tools",
+    Desc = "Recolors every slot in your hotbar and all weapons in inventory",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod then
+            local count = mod.recolorAllHotbarSlots(selectedSkinPreset)
+            WindUI:Notify({
+                Title = "Hotbar & Tools Skin",
+                Content = selectedSkinPreset .. " applied to " .. tostring(count) .. " slots and inventory!",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SkinsTab:Button({
     Title = "Reset Category Skin",
     Desc = "Removes custom skin and restores default hotbar icon for selected category",
     Callback = function()
@@ -2778,86 +2795,43 @@ SummonDragonTab:Button({
     end
 })
 
--- ========================================================================
--- 9. +18 SECTION TAB
--- ========================================================================
-local NsfwTab = Window:Tab({
-    Title = "+18 Section",
-    Icon = "shield-alert"
-})
-enhanceTabScrolling(NsfwTab)
-
-local nsfwUnlocked = false
-
-NsfwTab:Paragraph({
-    Title = "Content Warning (18+)",
-    Desc = "Sensitive Content Notice: This section contains user-generated media via Darling Media API. Please confirm your age before accessing.",
-    Image = "shield-alert"
-})
-
-NsfwTab:Toggle({
-    Title = "Confirm Age Verification (18+)",
-    Desc = "I confirm that I am at least 18 years of age and consent to viewing sensitive user media",
-    Value = false,
+SummonDragonTab:Toggle({
+    Title = "Hide Dragon Companion",
+    Desc = "Hides dragon model, lights, and effects without dismissing",
+    Default = false,
     Callback = function(state)
-        nsfwUnlocked = state
-        WindUI:Notify({
-            Title = "Access Control",
-            Content = state and "18+ Section unlocked. Media controls enabled." or "18+ Section locked.",
-            Duration = 3,
-            Icon = darlingIcon
-        })
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            mod.setHidden(state)
+            WindUI:Notify({
+                Title = "Celestial Dragon",
+                Content = state and "Dragon companion hidden." or "Dragon companion visible.",
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+        end
     end
 })
 
-NsfwTab:Divider()
-
-NsfwTab:Paragraph({
-    Title = "Cloud Media Gallery",
-    Desc = "Active cloud-synced images from Darling Media API",
-    Image = "sparkles"
-})
-
-NsfwTab:Button({
-    Title = "Media 1 (IMG_8815)",
-    Desc = "Loads d_70418b3a9ccd in clean fullscreen view",
+SummonDragonTab:Button({
+    Title = "Dismiss Dragon Companion",
+    Desc = "Completely removes and despawns the Celestial Titan Dragon",
     Callback = function()
-        if not nsfwUnlocked then
+        local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
+        if mod then
+            mod.dismiss()
             WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
+                Title = "Celestial Dragon",
+                Content = "Dragon dismissed successfully.",
                 Duration = 3,
                 Icon = darlingIcon
             })
-            return
         end
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_70418b3a9ccd"))()
-        end)
-    end
-})
-
-NsfwTab:Button({
-    Title = "Media 2 (IMG_8799 GIF)",
-    Desc = "Loads d_b99ca4b22f34 animated GIF in clean fullscreen view",
-    Callback = function()
-        if not nsfwUnlocked then
-            WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            return
-        end
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_b99ca4b22f34"))()
-        end)
     end
 })
 
 -- ========================================================================
--- 11. PERSONALIZATION TAB
+-- 9. PERSONALIZATION TAB
 -- ========================================================================
 local PersonalizationTab = Window:Tab({
     Title = "Personalization",
@@ -3156,13 +3130,273 @@ PersonalizationTab:Toggle({
 })
 
 -- ========================================================================
--- 12. SETTINGS TAB
+-- 10. SETTINGS TAB (SAVE CONFIG & MULTI-LANGUAGE)
 -- ========================================================================
+local SupportedLanguages = { "English", "Español", "Français", "Tiếng Việt", "Português" }
+local currentLanguage = "English"
+
+local Translations = {
+    ["English"] = {
+        ConfigSaved = "Configuration saved successfully to darling_hub/config.json",
+        ConfigLoaded = "Configuration loaded successfully.",
+        ConfigReset = "All configurations restored to default.",
+        ConfigFailed = "Failed to access configuration file.",
+        LanguageChanged = "Interface language set to English.",
+        HubLoaded = "Darling Hub loaded successfully.",
+        Settings = "Settings",
+        SaveConfig = "Save Configuration",
+        LoadConfig = "Load Configuration",
+        AutoSave = "Auto-Save Configuration",
+        Language = "Interface Language",
+    },
+    ["Español"] = {
+        ConfigSaved = "Configuracion guardada correctamente en darling_hub/config.json",
+        ConfigLoaded = "Configuracion cargada correctamente.",
+        ConfigReset = "Todas las configuraciones restauradas por defecto.",
+        ConfigFailed = "Error al acceder al archivo de configuracion.",
+        LanguageChanged = "Idioma de la interfaz establecido a Espanol.",
+        HubLoaded = "Darling Hub cargado correctamente.",
+        Settings = "Ajustes",
+        SaveConfig = "Guardar Configuracion",
+        LoadConfig = "Cargar Configuracion",
+        AutoSave = "Autoguardar Configuracion",
+        Language = "Idioma de la interfaz",
+    },
+    ["Français"] = {
+        ConfigSaved = "Configuration enregistree avec succes dans darling_hub/config.json",
+        ConfigLoaded = "Configuration chargee avec succes.",
+        ConfigReset = "Toutes les configurations restaurees par defaut.",
+        ConfigFailed = "Echec d'acces au fichier de configuration.",
+        LanguageChanged = "Langue de l'interface definie en Francais.",
+        HubLoaded = "Darling Hub charge avec succes.",
+        Settings = "Parametres",
+        SaveConfig = "Enregistrer la configuration",
+        LoadConfig = "Charger la configuration",
+        AutoSave = "Sauvegarde automatique",
+        Language = "Langue de l'interface",
+    },
+    ["Tiếng Việt"] = {
+        ConfigSaved = "Cau hinh da luu thanh cong vao darling_hub/config.json",
+        ConfigLoaded = "Cau hinh da duoc tai thanh cong.",
+        ConfigReset = "Tat ca cau hinh da duoc khoi phuc ve mac dinh.",
+        ConfigFailed = "Khong the truy cap tep cau hinh.",
+        LanguageChanged = "Ngon ngu giao dien da doi sang Tieng Viet.",
+        HubLoaded = "Darling Hub da tai thanh cong.",
+        Settings = "Cai dat",
+        SaveConfig = "Luu cau hinh",
+        LoadConfig = "Tai cau hinh",
+        AutoSave = "Tu dong luu cau hinh",
+        Language = "Ngon ngu giao dien",
+    },
+    ["Português"] = {
+        ConfigSaved = "Configuracao salva com sucesso em darling_hub/config.json",
+        ConfigLoaded = "Configuracao carregada com sucesso.",
+        ConfigReset = "Todas as configuracoes restauradas para o padrao.",
+        ConfigFailed = "Falha ao acessar o arquivo de configuracao.",
+        LanguageChanged = "Idioma da interface definido para Portugues.",
+        HubLoaded = "Darling Hub carregado com sucesso.",
+        Settings = "Configuracoes",
+        SaveConfig = "Salvar Configuracao",
+        LoadConfig = "Carregar Configuracao",
+        AutoSave = "Salvar Automaticamente",
+        Language = "Idioma da interface",
+    }
+}
+
+local function tr(key)
+    local l = Translations[currentLanguage] or Translations["English"]
+    return l[key] or Translations["English"][key] or key
+end
+
+local CONFIG_FOLDER = "darling_hub"
+local CONFIG_FILE = "darling_hub/config.json"
+local autoSaveConfig = true
+
+local function ensureConfigFolder()
+    pcall(function()
+        if makefolder and isfolder and not isfolder(CONFIG_FOLDER) then
+            makefolder(CONFIG_FOLDER)
+        end
+    end)
+end
+
+local function saveHubConfig()
+    ensureConfigFolder()
+    local cfg = {
+        Language = currentLanguage,
+        Keybind = currentToggleKey and currentToggleKey.Name or "F",
+        AutoSave = autoSaveConfig,
+        Theme = currentSelectedTheme or "Darling",
+        BackgroundMedia = lastEnteredBackgroundInput or "",
+        BackgroundBlur = currentBgBlur or 0,
+        BackgroundTransparency = currentBgTransparency or 0.15,
+        Skins = {
+            SelectedCategory = selectedCategory or "Fruits",
+            SelectedPreset = selectedSkinPreset or "Purple",
+        }
+    }
+    pcall(function()
+        local sMod = getSkinsMod()
+        if sMod then
+            cfg.Skins.VFXEnabled = sMod.VFX and sMod.VFX.Enabled
+            cfg.Skins.CharacterSkin = sMod.Character and sMod.Character.ActivePreset
+            cfg.Skins.AuraEnabled = sMod.Character and sMod.Character.AuraEnabled
+        end
+    end)
+    pcall(function()
+        local mMod = getMusicMod()
+        if mMod and mMod.Favorites then
+            cfg.MusicFavorites = mMod.Favorites
+        end
+    end)
+
+    if writefile then
+        local ok, err = pcall(function()
+            local json = HttpService:JSONEncode(cfg)
+            writefile(CONFIG_FILE, json)
+        end)
+        return ok, err
+    end
+    return false, "writefile not supported on this executor"
+end
+
+local function loadHubConfig()
+    if isfile and readfile then
+        local exists = false
+        pcall(function() exists = isfile(CONFIG_FILE) end)
+        if not exists then return false, "No saved config found" end
+
+        local ok, data = pcall(function()
+            local raw = readfile(CONFIG_FILE)
+            return HttpService:JSONDecode(raw)
+        end)
+        if not ok or type(data) ~= "table" then return false, "Invalid config data" end
+
+        pcall(function()
+            if data.Language and Translations[data.Language] then
+                currentLanguage = data.Language
+            end
+            if data.Keybind and Enum.KeyCode[data.Keybind] then
+                currentToggleKey = Enum.KeyCode[data.Keybind]
+            end
+            if data.AutoSave ~= nil then
+                autoSaveConfig = data.AutoSave
+            end
+            if data.Theme and WindUI then
+                pcall(function() WindUI:SetTheme(data.Theme) end)
+            end
+            if data.BackgroundMedia and data.BackgroundMedia ~= "" then
+                lastEnteredBackgroundInput = data.BackgroundMedia
+                task.spawn(function()
+                    processAndApplyMediaInput(data.BackgroundMedia)
+                end)
+            end
+            if data.Skins and type(data.Skins) == "table" then
+                if data.Skins.SelectedCategory then
+                    selectedCategory = data.Skins.SelectedCategory
+                end
+                if data.Skins.SelectedPreset then
+                    selectedSkinPreset = data.Skins.SelectedPreset
+                end
+            end
+        end)
+        return true, data
+    end
+    return false, "readfile not supported on this executor"
+end
+
 local SettingsTab = Window:Tab({
     Title = "Settings",
     Icon = "settings"
 })
 enhanceTabScrolling(SettingsTab)
+
+SettingsTab:Paragraph({
+    Title = "Configuration & Localization",
+    Desc = "Save all settings across sessions and change the interface language",
+    Image = "settings"
+})
+
+SettingsTab:Dropdown({
+    Title = "Interface Language",
+    Desc = "Select language: English, Español, Français, Tiếng Việt, Português",
+    Values = SupportedLanguages,
+    Default = "English",
+    Callback = function(lang)
+        if Translations[lang] then
+            currentLanguage = lang
+            WindUI:Notify({
+                Title = tr("Language"),
+                Content = tr("LanguageChanged"),
+                Duration = 2.5,
+                Icon = darlingIcon
+            })
+            if autoSaveConfig then
+                saveHubConfig()
+            end
+        end
+    end
+})
+
+SettingsTab:Button({
+    Title = "Save Configuration",
+    Desc = "Saves all Darling Hub settings, themes, skins, and binds to darling_hub/config.json",
+    Callback = function()
+        local ok, err = saveHubConfig()
+        if ok then
+            WindUI:Notify({
+                Title = tr("SaveConfig"),
+                Content = tr("ConfigSaved"),
+                Duration = 3,
+                Icon = "check"
+            })
+        else
+            WindUI:Notify({
+                Title = tr("SaveConfig"),
+                Content = "Failed to save: " .. tostring(err),
+                Duration = 3,
+                Icon = "alert-triangle"
+            })
+        end
+    end
+})
+
+SettingsTab:Button({
+    Title = "Load Configuration",
+    Desc = "Loads previously saved configuration from disk",
+    Callback = function()
+        local ok, data = loadHubConfig()
+        if ok then
+            WindUI:Notify({
+                Title = tr("LoadConfig"),
+                Content = tr("ConfigLoaded"),
+                Duration = 3,
+                Icon = "check"
+            })
+        else
+            WindUI:Notify({
+                Title = tr("LoadConfig"),
+                Content = tostring(data or tr("ConfigFailed")),
+                Duration = 3,
+                Icon = "alert-triangle"
+            })
+        end
+    end
+})
+
+SettingsTab:Toggle({
+    Title = "Auto-Save Configuration",
+    Desc = "Automatically saves your configuration on changes",
+    Value = true,
+    Callback = function(state)
+        autoSaveConfig = state
+        if state then
+            saveHubConfig()
+        end
+    end
+})
+
+SettingsTab:Divider()
 
 SettingsTab:Keybind({
     Title = "Hub Toggle Shortcut",
@@ -3173,6 +3407,9 @@ SettingsTab:Keybind({
             currentToggleKey = keyName
         elseif type(keyName) == "string" and Enum.KeyCode[keyName] then
             currentToggleKey = Enum.KeyCode[keyName]
+        end
+        if autoSaveConfig then
+            saveHubConfig()
         end
         local now = tick()
         if now - lastToggleTick >= 0.3 then
@@ -3194,9 +3431,17 @@ SettingsTab:Divider()
 SettingsTab:Button({
     Title = "Reset Default Settings",
     Callback = function()
+        currentLanguage = "English"
+        currentToggleKey = Enum.KeyCode.F
+        autoSaveConfig = true
+        pcall(function()
+            if isfile and delfile and isfile(CONFIG_FILE) then
+                delfile(CONFIG_FILE)
+            end
+        end)
         WindUI:Notify({
             Title = "Settings Reset",
-            Content = "All configurations restored to default.",
+            Content = tr("ConfigReset"),
             Duration = 3,
             Icon = "rotate-ccw"
         })
@@ -3207,6 +3452,9 @@ SettingsTab:Button({
     Title = "Unload Darling Hub",
     Desc = "Closes and completely terminates Darling Hub",
     Callback = function()
+        if autoSaveConfig then
+            saveHubConfig()
+        end
         pcall(function()
             allowFloatingWidget = false
             DarlingHub:UnloadAll()
@@ -3236,11 +3484,19 @@ WindUI:Notify({
 
 Window:SelectTab(1)
 
+-- Auto-load saved configuration on startup if available
+task.spawn(function()
+    task.wait(0.2)
+    loadHubConfig()
+end)
+
 -- Auto-apply default background (Dark Forest) on first launch
 task.spawn(function()
     task.wait(0.5)
-    lastEnteredBackgroundInput = "d_d54d5cfd6e07"
-    pcall(function()
-        processAndApplyMediaInput("d_d54d5cfd6e07")
-    end)
+    if not lastEnteredBackgroundInput or lastEnteredBackgroundInput == "" then
+        lastEnteredBackgroundInput = "d_d54d5cfd6e07"
+        pcall(function()
+            processAndApplyMediaInput("d_d54d5cfd6e07")
+        end)
+    end
 end)
