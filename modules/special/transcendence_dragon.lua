@@ -1989,42 +1989,31 @@ function Transcendence.startFlightController()
 
         local container = Instance.new("Frame")
         container.Name = "DismountPill"
-        container.Size = UDim2.new(0, 180, 0, 46)
-        container.Position = UDim2.new(0.5, -90, 0.84, 0)
-        container.BackgroundColor3 = Color3.fromRGB(16, 14, 22)
+        container.Size = UDim2.new(0, 130, 0, 34)
+        container.Position = UDim2.new(0.5, -65, 0.88, 0)
+        container.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
         container.BackgroundTransparency = 0.2
         container.BorderSizePixel = 0
         container.Parent = sg
 
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 12)
+        corner.CornerRadius = UDim.new(0, 8)
         corner.Parent = container
 
         local stroke = Instance.new("UIStroke")
-        stroke.Color = Color3.fromRGB(255, 105, 180)
-        stroke.Thickness = 1.3
-        stroke.Transparency = 0.25
+        stroke.Color = Color3.fromRGB(50, 50, 55)
+        stroke.Thickness = 1
+        stroke.Transparency = 0.6
         stroke.Parent = container
 
         local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, 0, 0, 20)
-        title.Position = UDim2.new(0, 0, 0, 5)
+        title.Size = UDim2.new(1, 0, 1, 0)
         title.BackgroundTransparency = 1
-        title.Text = "DISMOUNT DRAGON"
-        title.TextColor3 = Color3.fromRGB(255, 255, 255)
-        title.Font = Enum.Font.GothamBold
+        title.Text = "Dismount Dragon"
+        title.TextColor3 = Color3.fromRGB(220, 220, 225)
+        title.Font = Enum.Font.GothamMedium
         title.TextSize = 11
         title.Parent = container
-
-        local subtitle = Instance.new("TextLabel")
-        subtitle.Size = UDim2.new(1, 0, 0, 14)
-        subtitle.Position = UDim2.new(0, 0, 0, 24)
-        subtitle.BackgroundTransparency = 1
-        subtitle.Text = "Tap to exit 3D flight"
-        subtitle.TextColor3 = Color3.fromRGB(255, 130, 175)
-        subtitle.Font = Enum.Font.GothamMedium
-        subtitle.TextSize = 8.5
-        subtitle.Parent = container
 
         local clickBtn = Instance.new("TextButton")
         clickBtn.Size = UDim2.new(1, 0, 1, 0)
@@ -2050,8 +2039,7 @@ function Transcendence.startFlightController()
     Transcendence.FlightConn = RunService.RenderStepped:Connect(function(dt)
         if not Transcendence.IsRiding then return end
         local dragonBody = Transcendence.DragonBody
-        local saddle = Transcendence.DragonSaddle
-        if not dragonBody or not dragonBody.Parent or not saddle or not saddle.Parent then
+        if not dragonBody or not dragonBody.Parent then
             Transcendence.dismount()
             return
         end
@@ -2067,61 +2055,69 @@ function Transcendence.startFlightController()
         local cam = Workspace.CurrentCamera
         local camCF = cam.CFrame
 
-        -- 3D Navigation (Unified for Mobile thumbstick & PC WASD)
+        -- Movement input (Mobile Virtual Thumbstick + PC WASD)
         local moveDir = Vector3.new(0, 0, 0)
-        local m = hum.MoveDirection
-        if m.Magnitude > 0 then
-            local fwd = m:Dot(camCF.LookVector)
-            local rgt = m:Dot(camCF.RightVector)
-            moveDir = (camCF.LookVector * fwd + camCF.RightVector * rgt)
+        local rawVec = Vector3.new(0, 0, 0)
+        local okVec, v = pcall(function() return UserInputService:GetMoveVector() end)
+        if okVec and v and v.Magnitude > 0 then
+            rawVec = v
+        elseif hum.MoveDirection.Magnitude > 0 then
+            rawVec = hum.MoveDirection
         end
 
-        -- Direct PC inputs
+        if rawVec.Magnitude > 0 then
+            moveDir = (camCF.RightVector * rawVec.X) + (camCF.LookVector * -rawVec.Z)
+        end
+
+        -- Direct PC inputs for ascending and descending
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDir = moveDir - Vector3.new(0, 1, 0)
+        end
 
         local speed = 140
-        local targetPos = dragonBody.Position
-        local currentLook = dragonBody.CFrame.LookVector
-        local targetLook = targetPos + currentLook * 20
+        local currentPos = hrp.Position
+        local currentLook = hrp.CFrame.LookVector
+        local targetPos = currentPos
+        local targetLook = currentPos + currentLook * 20
 
         if moveDir.Magnitude > 0 then
             local normDir = moveDir.Unit
-            targetPos = dragonBody.Position + normDir * (speed * dt)
+            targetPos = currentPos + normDir * (speed * dt)
             targetLook = targetPos + normDir * 20
+            pcall(function() hrp.AssemblyLinearVelocity = normDir * speed end)
         else
-            -- Smooth, zero-pitch hover without accumulating drift or lookAt jitter
+            -- Smooth, zero-pitch hover without accumulating drift
             local hoverDelta = math.sin(tick() * 2) * 0.4
-            targetPos = Vector3.new(dragonBody.Position.X, dragonBody.Position.Y + (hoverDelta * dt * 2), dragonBody.Position.Z)
+            targetPos = Vector3.new(currentPos.X, currentPos.Y + (hoverDelta * dt * 2), currentPos.Z)
             targetLook = targetPos + Vector3.new(currentLook.X, 0, currentLook.Z).Unit * 20
+            pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
         end
 
         local bankAngle = 0
         if moveDir.Magnitude > 0 then
-            local rgt = camCF.RightVector
-            local turnAmount = moveDir:Dot(rgt)
+            local turnAmount = moveDir:Dot(camCF.RightVector)
             bankAngle = -turnAmount * 0.35
         end
 
-        local baseCF = CFrame.lookAt(targetPos, targetLook) * CFrame.Angles(0, 0, bankAngle)
-        dragonBody.CFrame = baseCF
+        local riderCF = CFrame.lookAt(targetPos, targetLook)
+        hrp.CFrame = riderCF
+        hum.PlatformStand = true
+        hum.AutoRotate = false
+
+        local dragonCF = riderCF * CFrame.new(0, -3.8, 1.0) * CFrame.Angles(0, 0, bankAngle)
+        dragonBody.CFrame = dragonCF
         dragonBody.Transparency = 0.05
 
-        -- Keep character comfortably seated and synchronized
-        hum.PlatformStand = false
-        hum.Sit = true
-        hum:ChangeState(Enum.HumanoidStateType.Seated)
-        hrp.CFrame = dragonBody.CFrame * CFrame.new(0, 3.8, -1.0)
-
-        -- Spines & Crystals update
+        -- Spines & Crystals update relative to dragon CFrame
         local now = tick()
         for _, sData in ipairs(Transcendence.DragonSpines) do
             if sData.part and sData.part.Parent then
-                sData.part.CFrame = baseCF * CFrame.new(0, sData.yOffset, sData.zOffset) * CFrame.Angles(math.rad(25), 0, 0)
+                sData.part.CFrame = dragonCF * CFrame.new(0, sData.yOffset, sData.zOffset) * CFrame.Angles(math.rad(25), 0, 0)
                 sData.part.Transparency = 0.15
                 sData.part.Color = rainbowColor(sData.index / 6 + now * 0.25, 0.4)
             end
@@ -2131,7 +2127,7 @@ function Transcendence.startFlightController()
             local eData = Transcendence.DragonEscorts[idx]
             if eData and eData.part and eData.part.Parent then
                 local eAng = now * 2.5 + (idx / 4) * math.pi * 2
-                local ePos = targetPos + Vector3.new(math.cos(eAng) * 20.0, math.sin(now * 3.0 + idx) * 2.5, math.sin(eAng) * 20.0)
+                local ePos = dragonCF.Position + Vector3.new(math.cos(eAng) * 20.0, math.sin(now * 3.0 + idx) * 2.5, math.sin(eAng) * 20.0)
                 eData.part.CFrame = CFrame.new(ePos) * CFrame.Angles(now * 3, eAng, 0)
                 eData.part.Transparency = 0.15
                 eData.part.Color = rainbowColor(idx / 4 + now * 0.2, 0.4)
@@ -2166,24 +2162,17 @@ function Transcendence.mount()
     end
 
     local dragonBody = Transcendence.DragonBody
-    local saddle = Transcendence.DragonSaddle
-    if not dragonBody or not dragonBody.Parent or not saddle or not saddle.Parent then return false end
+    if not dragonBody or not dragonBody.Parent then return false end
 
     Transcendence.IsRiding = true
     Transcendence.setMountPromptVisible(false)
-    hrp.CFrame = dragonBody.CFrame * CFrame.new(0, 3.8, -1.0)
-    task.wait(0.05)
-    pcall(function() saddle:Sit(hum) end)
 
-    if Transcendence.RiderWeld and Transcendence.RiderWeld.Parent then
-        pcall(function() Transcendence.RiderWeld:Destroy() end)
-    end
-    local riderWeld = Instance.new("WeldConstraint")
-    riderWeld.Name = "DarlingDragonRiderWeld"
-    riderWeld.Part0 = dragonBody
-    riderWeld.Part1 = hrp
-    riderWeld.Parent = hrp
-    Transcendence.RiderWeld = riderWeld
+    -- Free-floating rider state that actively replicates position to server
+    hum.PlatformStand = true
+    hum.AutoRotate = false
+
+    hrp.CFrame = dragonBody.CFrame * CFrame.new(0, 3.8, -1.0)
+    pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
 
     Transcendence.startFlightController()
     return true
@@ -2197,11 +2186,6 @@ function Transcendence.dismount()
         Transcendence.FlightConn = nil
     end
 
-    if Transcendence.RiderWeld and Transcendence.RiderWeld.Parent then
-        pcall(function() Transcendence.RiderWeld:Destroy() end)
-    end
-    Transcendence.RiderWeld = nil
-
     if Transcendence.DismountGui and Transcendence.DismountGui.Parent then
         pcall(function() Transcendence.DismountGui:Destroy() end)
     end
@@ -2211,11 +2195,12 @@ function Transcendence.dismount()
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local hrp = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
     if hum then
-        hum.Sit = false
-        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        hum.PlatformStand = false
+        hum.AutoRotate = true
+        hum:ChangeState(Enum.HumanoidStateType.Freefall)
     end
-    if hrp and Transcendence.DragonBody and Transcendence.DragonBody.Parent then
-        hrp.CFrame = Transcendence.DragonBody.CFrame * CFrame.new(0, 8, 12)
+    if hrp then
+        pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
     end
 end
 

@@ -2764,35 +2764,6 @@ SummonDragonTab:Button({
     end
 })
 
-SummonDragonTab:Divider()
-
-SummonDragonTab:Toggle({
-    Title = "Darling VIP Aura",
-    Desc = "Applies exclusive ambient lighting and custom visual highlights",
-    Value = false,
-    Callback = function(state)
-        -- VIP aura logic
-    end
-})
-
-SummonDragonTab:Toggle({
-    Title = "Fake Lag Simulation",
-    Desc = "Simulates network latency spikes to desync position",
-    Value = false,
-    Callback = function(state)
-        -- Fake lag logic
-    end
-})
-
-SummonDragonTab:Toggle({
-    Title = "SpinBot 360",
-    Desc = "High-speed cosmetic character rotation",
-    Value = false,
-    Callback = function(state)
-        -- SpinBot logic
-    end
-})
-
 -- ========================================================================
 -- 9. +18 SECTION TAB
 -- ========================================================================
@@ -2803,7 +2774,6 @@ local NsfwTab = Window:Tab({
 enhanceTabScrolling(NsfwTab)
 
 local nsfwUnlocked = false
-local customMediaAssetId = ""
 
 NsfwTab:Paragraph({
     Title = "Content Warning (18+)",
@@ -2819,7 +2789,7 @@ NsfwTab:Toggle({
         nsfwUnlocked = state
         WindUI:Notify({
             Title = "Access Control",
-            Content = state and "18+ Section unlocked. Media API controls enabled." or "18+ Section locked.",
+            Content = state and "18+ Section unlocked. Media controls enabled." or "18+ Section locked.",
             Duration = 3,
             Icon = darlingIcon
         })
@@ -2829,14 +2799,14 @@ NsfwTab:Toggle({
 NsfwTab:Divider()
 
 NsfwTab:Paragraph({
-    Title = "Darling Media API (DevMode Bypass)",
-    Desc = "In-game fullscreen photo, video, and GIF media loader bypassing Roblox moderation",
+    Title = "Darling Media Player",
+    Desc = "Fullscreen media loader bypassing Roblox moderation",
     Image = "eye"
 })
 
 NsfwTab:Button({
     Title = "Launch Fullscreen Media Loader (DevMode)",
-    Desc = "Opens the full media carousel with gallery navigation arrows and clean UI",
+    Desc = "Opens the full media carousel in clean fullscreen mode",
     Callback = function()
         if not nsfwUnlocked then
             WindUI:Notify({
@@ -2859,164 +2829,87 @@ NsfwTab:Button({
     end
 })
 
-NsfwTab:Button({
-    Title = "Launch Static Photos & GIFs",
-    Desc = "Loads only static image and animated GIF gallery from Darling Media API",
-    Callback = function()
-        if not nsfwUnlocked then
-            WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            return
-        end
-        WindUI:Notify({
-            Title = "Darling Media",
-            Content = "Loading static gallery...",
-            Duration = 3,
-            Icon = darlingIcon
-        })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?type=static"))()
-        end)
-    end
-})
-
-NsfwTab:Button({
-    Title = "Launch Video Player (Anti-Flicker)",
-    Desc = "Loads 15 FPS HD video gallery with double-buffer anti-flicker",
-    Callback = function()
-        if not nsfwUnlocked then
-            WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            return
-        end
-        WindUI:Notify({
-            Title = "Darling Media",
-            Content = "Loading video player...",
-            Duration = 3,
-            Icon = darlingIcon
-        })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?type=video"))()
-        end)
-    end
-})
-
-NsfwTab:Input({
-    Title = "Specific Asset ID",
-    Desc = "Enter a specific Darling Media Asset ID to view individually",
-    Placeholder = "e.g. asset_id_here",
-    Value = "",
-    Callback = function(val)
-        customMediaAssetId = val or ""
-    end
-})
-
-NsfwTab:Button({
-    Title = "Launch Specific Asset ID",
-    Desc = "Opens the specified asset in clean fullscreen mode",
-    Callback = function()
-        if not nsfwUnlocked then
-            WindUI:Notify({
-                Title = "Restricted",
-                Content = "Please enable Age Verification toggle above first.",
-                Duration = 3,
-                Icon = darlingIcon
-            })
-            return
-        end
-        if customMediaAssetId == "" then
-            WindUI:Notify({
-                Title = "Darling Media",
-                Content = "Enter an Asset ID first.",
-                Duration = 2.5,
-                Icon = darlingIcon
-            })
-            return
-        end
-        WindUI:Notify({
-            Title = "Darling Media",
-            Content = "Loading asset " .. customMediaAssetId .. "...",
-            Duration = 3,
-            Icon = darlingIcon
-        })
-        pcall(function()
-            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=" .. customMediaAssetId))()
-        end)
-    end
-})
-
 NsfwTab:Divider()
 
-NsfwTab:Toggle({
-    Title = "Custom Animation Sync",
-    Desc = "Synchronizes R6 / R15 pose animations",
-    Value = false,
-    Callback = function(state)
-        -- Custom animation logic
+NsfwTab:Paragraph({
+    Title = "Custom Media Links",
+    Desc = "Direct fullscreen launch for selected media assets",
+    Image = "sparkles"
+})
+
+NsfwTab:Button({
+    Title = "Media 1 (d_70418b3a9ccd)",
+    Desc = "IMG_8815 - Fullscreen view",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_70418b3a9ccd"))()
+        end)
     end
 })
 
-NsfwTab:Toggle({
-    Title = "Atmospheric Screen Tint",
-    Desc = "Applies cinematic color correction to camera",
-    Value = false,
-    Callback = function(state)
-        -- Screen tint logic
+NsfwTab:Button({
+    Title = "Media 2 (d_56c0332ed740)",
+    Desc = "Direct asset loader",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_56c0332ed740"))()
+        end)
     end
 })
 
--- ========================================================================
--- 10. CONTROL PEOPLE TAB
--- ========================================================================
-local ControlTab = Window:Tab({
-    Title = "Control People",
-    Icon = "gamepad-2"
-})
-enhanceTabScrolling(ControlTab)
-
-ControlTab:Dropdown({
-    Title = "Select Target Player",
-    Values = { "Nearest Player 1", "Nearest Player 2", "All Players" },
-    Default = "Nearest Player 1",
-    Callback = function(selected)
-        -- Target player logic
+NsfwTab:Button({
+    Title = "Media 3 (d_b99ca4b22f34)",
+    Desc = "IMG_8799 - Fullscreen view",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_b99ca4b22f34"))()
+        end)
     end
 })
 
-ControlTab:Divider()
-
-ControlTab:Toggle({
-    Title = "Spectate Mode",
-    Desc = "Shifts camera view to the selected player",
-    Value = false,
-    Callback = function(state)
-        -- Spectate logic
-    end
-})
-
-ControlTab:Toggle({
-    Title = "Follow Target",
-    Desc = "Continuously follows the target player position",
-    Value = false,
-    Callback = function(state)
-        -- Follow logic
-    end
-})
-
-ControlTab:Toggle({
-    Title = "Attraction Pulse",
-    Desc = "Applies directional pull momentum toward target",
-    Value = false,
-    Callback = function(state)
-        -- Attraction logic
+NsfwTab:Button({
+    Title = "Media 4 (d_6bfdd60e1d56)",
+    Desc = "Direct asset loader",
+    Callback = function()
+        if not nsfwUnlocked then
+            WindUI:Notify({
+                Title = "Restricted",
+                Content = "Please enable Age Verification toggle above first.",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            return
+        end
+        pcall(function()
+            loadstring(game:HttpGet("https://darling-media-api.onrender.com/scripts/devmode.lua?id=d_6bfdd60e1d56"))()
+        end)
     end
 })
 
