@@ -83,7 +83,69 @@ local Transcendence = {
     DragonEscorts = {},
     DragonSaddle = nil,
     FlightConn = nil,
+    CompanionConn = nil,
+    CinematicConn = nil,
+    CinematicEndFn = nil,
 }
+
+function Transcendence.startFollowCompanion(char, dragonBody, dragonSpines, dragonEscortCrystals, companionFolder)
+    if Transcendence.CompanionConn then
+        pcall(function() Transcendence.CompanionConn:Disconnect() end)
+        Transcendence.CompanionConn = nil
+    end
+
+    if not dragonBody or not dragonBody.Parent then return nil end
+
+    local companionConn = nil
+    local lastCompanionTick = 0
+    companionConn = RunService.Heartbeat:Connect(function()
+        if Transcendence.IsRiding or Transcendence.IsHidden then return end
+
+        local now = tick()
+        if now - lastCompanionTick < 0.033 then return end
+        lastCompanionTick = now
+
+        local cChar = LocalPlayer and LocalPlayer.Character or char
+        local cHrp = cChar and (cChar:FindFirstChild("HumanoidRootPart") or cChar:FindFirstChild("Torso") or cChar:FindFirstChildWhichIsA("BasePart"))
+        if not cHrp or not dragonBody or not dragonBody.Parent or (companionFolder and not companionFolder.Parent) then
+            if companionConn then companionConn:Disconnect() end
+            if Transcendence.CompanionConn == companionConn then
+                Transcendence.CompanionConn = nil
+            end
+            return
+        end
+        local targetFollowPos = cHrp.Position + cHrp.CFrame.RightVector * 28 + cHrp.CFrame.LookVector * 8 + Vector3.new(0, 38.0 + math.sin(now * 2.2) * 1.8, 0)
+        local bodyPos = dragonBody.Position:Lerp(targetFollowPos, 0.08)
+
+        local targetLook = cHrp.Position + cHrp.CFrame.LookVector * 65 + Vector3.new(0, 15, 0)
+        local baseCF = CFrame.lookAt(bodyPos, targetLook)
+        local bankAngle = math.sin(now * 1.8) * 0.06
+        local pitchAngle = math.rad(10) + math.cos(now * 2.2) * 0.04
+        dragonBody.CFrame = baseCF * CFrame.Angles(pitchAngle, 0, bankAngle)
+        dragonBody.Transparency = 0.05
+
+        for _, sData in ipairs(dragonSpines or {}) do
+            if sData.part and sData.part.Parent then
+                sData.part.CFrame = baseCF * CFrame.new(0, sData.yOffset, sData.zOffset) * CFrame.Angles(math.rad(25), 0, 0)
+                sData.part.Transparency = 0.15
+                sData.part.Color = rainbowColor(sData.index / 6 + now * 0.25, 0.4)
+            end
+        end
+
+        for idx = 1, 4 do
+            local eData = dragonEscortCrystals and dragonEscortCrystals[idx]
+            if eData and eData.part and eData.part.Parent then
+                local eAng = now * 2.5 + (idx / 4) * math.pi * 2
+                local ePos = bodyPos + Vector3.new(math.cos(eAng) * 20.0, math.sin(now * 3.0 + idx) * 2.5, math.sin(eAng) * 20.0)
+                eData.part.CFrame = CFrame.new(ePos) * CFrame.Angles(now * 3, eAng, 0)
+                eData.part.Transparency = 0.15
+                eData.part.Color = rainbowColor(idx / 4 + now * 0.2, 0.4)
+            end
+        end
+    end)
+    Transcendence.CompanionConn = companionConn
+    return companionConn
+end
 
 local playCinematicIntro = nil
 
@@ -1076,7 +1138,12 @@ playCinematicIntro = function(onComplete)
     local function endCinematic()
         if isDone then return end
         isDone = true
-        if renderConn then renderConn:Disconnect() end
+        if renderConn then
+            pcall(function() renderConn:Disconnect() end)
+            renderConn = nil
+        end
+        Transcendence.CinematicConn = nil
+        Transcendence.CinematicEndFn = nil
 
         pcall(function()
             if cinemaScreen then cinemaScreen:Destroy() end
@@ -1120,60 +1187,18 @@ playCinematicIntro = function(onComplete)
         setGameGuisVisible(true)
 
         -- PERMANENT DRAGON COMPANION BESIDE PLAYER (Y + 38.0 STUDS)
-        task.spawn(function()
-            local companionConn = nil
-            local lastPlayCompanionTick = 0
-            companionConn = RunService.Heartbeat:Connect(function()
-                if Transcendence.IsRiding or Transcendence.IsHidden then return end
-
-                local now = tick()
-                if now - lastPlayCompanionTick < 0.033 then return end
-                lastPlayCompanionTick = now
-
-                local cChar = LocalPlayer and LocalPlayer.Character or char
-                local cHrp = cChar and (cChar:FindFirstChild("HumanoidRootPart") or cChar:FindFirstChild("Torso") or cChar:FindFirstChildWhichIsA("BasePart"))
-                if not cHrp or not companionFolder or not companionFolder.Parent then
-                    if companionConn then companionConn:Disconnect() end
-                    return
-                end
-                -- Elevated hover at Y + 38.0 studs above player feet!
-                local targetFollowPos = cHrp.Position + cHrp.CFrame.RightVector * 28 + cHrp.CFrame.LookVector * 8 + Vector3.new(0, 38.0 + math.sin(now * 2.2) * 1.8, 0)
-                local bodyPos = dragonBody.Position:Lerp(targetFollowPos, 0.08)
-
-                local targetLook = cHrp.Position + cHrp.CFrame.LookVector * 65 + Vector3.new(0, 15, 0)
-                local baseCF = CFrame.lookAt(bodyPos, targetLook)
-                local bankAngle = math.sin(now * 1.8) * 0.06
-                local pitchAngle = math.rad(10) + math.cos(now * 2.2) * 0.04
-                dragonBody.CFrame = baseCF * CFrame.Angles(pitchAngle, 0, bankAngle)
-                dragonBody.Transparency = 0.05
-
-                -- Update Dorsal Spines
-                for _, sData in ipairs(dragonSpines) do
-                    if sData.part then
-                        sData.part.CFrame = baseCF * CFrame.new(0, sData.yOffset, sData.zOffset) * CFrame.Angles(math.rad(25), 0, 0)
-                        sData.part.Transparency = 0.15
-                        sData.part.Color = rainbowColor(sData.index / 6 + now * 0.25, 0.4)
-                    end
-                end
-
-                -- 4 Orbiting Familiar Crystals
-                for idx = 1, 4 do
-                    local eData = dragonEscortCrystals[idx]
-                    if eData and eData.part then
-                        local eAng = now * 2.5 + (idx / 4) * math.pi * 2
-                        local ePos = bodyPos + Vector3.new(math.cos(eAng) * 20.0, math.sin(now * 3.0 + idx) * 2.5, math.sin(eAng) * 20.0)
-                        eData.part.CFrame = CFrame.new(ePos) * CFrame.Angles(now * 3, eAng, 0)
-                        eData.part.Transparency = 0.15
-                        eData.part.Color = rainbowColor(idx / 4 + now * 0.2, 0.4)
-                    end
-                end
-            end)
-        end)
+        Transcendence.DragonFolder = companionFolder
+        Transcendence.DragonBody = dragonBody
+        Transcendence.DragonSpines = dragonSpines
+        Transcendence.DragonEscorts = dragonEscortCrystals
+        Transcendence.startFollowCompanion(liveChar or char, dragonBody, dragonSpines, dragonEscortCrystals, companionFolder)
 
         if onComplete then
             onComplete()
         end
     end
+
+    Transcendence.CinematicEndFn = endCinematic
 
     -- Flags
     local didStarEruption = false
@@ -1186,6 +1211,7 @@ playCinematicIntro = function(onComplete)
     -- ========================================================================
     local startTime = tick()
     renderConn = RunService.RenderStepped:Connect(function(dt)
+        Transcendence.CinematicConn = renderConn
         local elapsed = tick() - startTime
         local now = tick()
 
@@ -1735,16 +1761,16 @@ playCinematicIntro = function(onComplete)
                 -- Smooth Lighting Restoration during final 2.5s (31.5s - 34.0s)
                 if elapsed >= 31.5 then
                     local pLightBack = (elapsed - 31.5) / 2.5
-                    Lighting.ClockTime = (14.0):Lerp(oldClockTime, pLightBack)
-                    Lighting.Brightness = (2.2):Lerp(oldBrightness, pLightBack)
+                    Lighting.ClockTime = 14.0 + (oldClockTime - 14.0) * pLightBack
+                    Lighting.Brightness = 2.2 + (oldBrightness - 2.2) * pLightBack
                     Lighting.Ambient = Color3.fromRGB(140, 110, 155):Lerp(oldAmbient, pLightBack)
                     Lighting.OutdoorAmbient = Color3.fromRGB(155, 120, 175):Lerp(oldOutdoorAmbient, pLightBack)
-                    Lighting.FogEnd = (10000):Lerp(oldFogEnd, pLightBack)
+                    Lighting.FogEnd = 10000 + (oldFogEnd - 10000) * pLightBack
                     Lighting.FogColor = Color3.fromRGB(235, 210, 255):Lerp(oldFogColor, pLightBack)
 
-                    bloom.Intensity = (1.3):Lerp(0, pLightBack)
-                    colorCorrection.Contrast = (0.18):Lerp(0, pLightBack)
-                    colorCorrection.Brightness = (0.05):Lerp(0, pLightBack)
+                    bloom.Intensity = 1.3 * (1 - pLightBack)
+                    colorCorrection.Contrast = 0.18 * (1 - pLightBack)
+                    colorCorrection.Brightness = 0.05 * (1 - pLightBack)
                 end
 
                 -- Smooth Camera Hand-Off (32.0s - 34.0s)
@@ -1772,7 +1798,7 @@ playCinematicIntro = function(onComplete)
                     local targetCF = CFrame.lookAt(normalCamPos, normalFocus)
 
                     cam.CFrame = startCF:Lerp(targetCF, easeCam)
-                    cam.FieldOfView = (82):Lerp(oldCameraFOV, easeCam)
+                    cam.FieldOfView = 82 + (oldCameraFOV - 82) * easeCam
                 end
             end
 
@@ -1922,60 +1948,9 @@ function Transcendence.spawnDirect()
             index = idx
         })
     end
-    -- Follow Loop
-    if Transcendence.CompanionConn then
-        pcall(function() Transcendence.CompanionConn:Disconnect() end)
-        Transcendence.CompanionConn = nil
-    end
-
-    task.spawn(function()
-        local companionConn = nil
-        local lastCompanionTick = 0
-        companionConn = RunService.Heartbeat:Connect(function()
-            if Transcendence.IsRiding or Transcendence.IsHidden then return end
-
-            local now = tick()
-            if now - lastCompanionTick < 0.033 then return end
-            lastCompanionTick = now
-
-            local cChar = LocalPlayer and LocalPlayer.Character or char
-            local cHrp = cChar and (cChar:FindFirstChild("HumanoidRootPart") or cChar:FindFirstChild("Torso") or cChar:FindFirstChildWhichIsA("BasePart"))
-            if not cHrp or not companionFolder or not companionFolder.Parent then
-                if companionConn then companionConn:Disconnect() end
-                Transcendence.CompanionConn = nil
-                return
-            end
-            local targetFollowPos = cHrp.Position + cHrp.CFrame.RightVector * 28 + cHrp.CFrame.LookVector * 8 + Vector3.new(0, 38.0 + math.sin(now * 2.2) * 1.8, 0)
-            local bodyPos = dragonBody.Position:Lerp(targetFollowPos, 0.08)
-
-            local targetLook = cHrp.Position + cHrp.CFrame.LookVector * 65 + Vector3.new(0, 15, 0)
-            local baseCF = CFrame.lookAt(bodyPos, targetLook)
-            local bankAngle = math.sin(now * 1.8) * 0.06
-            local pitchAngle = math.rad(10) + math.cos(now * 2.2) * 0.04
-            dragonBody.CFrame = baseCF * CFrame.Angles(pitchAngle, 0, bankAngle)
-            dragonBody.Transparency = 0.05
-
-            for _, sData in ipairs(dragonSpines) do
-                if sData.part then
-                    sData.part.CFrame = baseCF * CFrame.new(0, sData.yOffset, sData.zOffset) * CFrame.Angles(math.rad(25), 0, 0)
-                    sData.part.Transparency = 0.15
-                    sData.part.Color = rainbowColor(sData.index / 6 + now * 0.25, 0.4)
-                end
-            end
-
-            for idx = 1, 4 do
-                local eData = dragonEscortCrystals[idx]
-                if eData and eData.part then
-                    local eAng = now * 2.5 + (idx / 4) * math.pi * 2
-                    local ePos = bodyPos + Vector3.new(math.cos(eAng) * 20.0, math.sin(now * 3.0 + idx) * 2.5, math.sin(eAng) * 20.0)
-                    eData.part.CFrame = CFrame.new(ePos) * CFrame.Angles(now * 3, eAng, 0)
-                    eData.part.Transparency = 0.15
-                    eData.part.Color = rainbowColor(idx / 4 + now * 0.2, 0.4)
-                end
-            end
-        end)
-        Transcendence.CompanionConn = companionConn
-    end)
+    Transcendence.DragonSpines = dragonSpines
+    Transcendence.DragonEscorts = dragonEscortCrystals
+    Transcendence.startFollowCompanion(char, dragonBody, dragonSpines, dragonEscortCrystals, companionFolder)
 end
 
 function Transcendence.startFlightController()
@@ -2324,8 +2299,20 @@ function Transcendence.toggleHidden()
 end
 
 function Transcendence.dismiss()
+    if Transcendence.CinematicEndFn then
+        pcall(function() Transcendence.CinematicEndFn() end)
+        Transcendence.CinematicEndFn = nil
+    end
+    if Transcendence.CinematicConn then
+        pcall(function() Transcendence.CinematicConn:Disconnect() end)
+        Transcendence.CinematicConn = nil
+    end
     if Transcendence.IsRiding then
         Transcendence.dismount()
+    end
+    if Transcendence.FlightConn then
+        pcall(function() Transcendence.FlightConn:Disconnect() end)
+        Transcendence.FlightConn = nil
     end
     if Transcendence.CompanionConn then
         pcall(function() Transcendence.CompanionConn:Disconnect() end)
@@ -2339,7 +2326,24 @@ function Transcendence.dismiss()
     Transcendence.DragonSaddle = nil
     Transcendence.DragonSpines = {}
     Transcendence.DragonEscorts = {}
+    Transcendence.IsPlaying = false
     return true
+end
+
+function Transcendence.destroy()
+    return Transcendence.dismiss()
+end
+
+function Transcendence.getDiagnostics()
+    local connCount = 0
+    if Transcendence.CompanionConn then connCount = connCount + 1 end
+    if Transcendence.FlightConn then connCount = connCount + 1 end
+    if Transcendence.CinematicConn then connCount = connCount + 1 end
+    return {
+        Connections = connCount,
+        Threads = 0,
+        Active = (Transcendence.DragonFolder ~= nil) or Transcendence.IsRiding or (Transcendence.CinematicConn ~= nil),
+    }
 end
 
 return Transcendence

@@ -128,6 +128,10 @@ function ClientTweaks.setFFlags1(state)
             pcall(function() ClientTweaks.FFlagsAddedConn:Disconnect() end)
             ClientTweaks.FFlagsAddedConn = nil
         end
+        if ClientTweaks.FFlagsThread then
+            pcall(function() task.cancel(ClientTweaks.FFlagsThread) end)
+            ClientTweaks.FFlagsThread = nil
+        end
     end
 end
 
@@ -174,10 +178,30 @@ end
 -- ========================================================================
 -- 3. ANTI LAVA IMMUNITY
 -- ========================================================================
+local cachedLavaChar = nil
+local cachedLavaParts = {}
+
+local function refreshLavaParts(char)
+    cachedLavaChar = char
+    cachedLavaParts = {}
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart")
+            and part.Name ~= "HumanoidRootPart"
+            and part.Name ~= "Torso"
+            and part.Name ~= "UpperTorso"
+            and part.Name ~= "LowerTorso"
+            and part.Name ~= "Head" then
+            table.insert(cachedLavaParts, part)
+        end
+    end
+end
+
 function ClientTweaks.setAntiLava(state)
     ClientTweaks.AntiLavaEnabled = state
     if state and not ClientTweaks.AntiLavaConn then
         local timer = 0
+        refreshLavaParts(LocalPlayer.Character)
         ClientTweaks.AntiLavaConn = RunService.Stepped:Connect(function(_, dt)
             if not ClientTweaks.AntiLavaEnabled then return end
             timer = timer + dt
@@ -186,13 +210,11 @@ function ClientTweaks.setAntiLava(state)
 
             local char = LocalPlayer.Character
             if not char then return end
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart")
-                    and part.Name ~= "HumanoidRootPart"
-                    and part.Name ~= "Torso"
-                    and part.Name ~= "UpperTorso"
-                    and part.Name ~= "LowerTorso"
-                    and part.Name ~= "Head" then
+            if char ~= cachedLavaChar or #cachedLavaParts == 0 then
+                refreshLavaParts(char)
+            end
+            for _, part in ipairs(cachedLavaParts) do
+                if part and part.Parent then
                     part.CanTouch = false
                 end
             end
@@ -208,6 +230,8 @@ function ClientTweaks.setAntiLava(state)
                 end
             end
         end
+        cachedLavaChar = nil
+        cachedLavaParts = {}
     end
 end
 
@@ -235,6 +259,30 @@ function ClientTweaks.setCameraSkew(state, resolution)
         pcall(function() ClientTweaks.SkewConn:Disconnect() end)
         ClientTweaks.SkewConn = nil
     end
+end
+
+function ClientTweaks.destroy()
+    ClientTweaks.setFFlags1(false)
+    if ClientTweaks.FFlagsThread then
+        pcall(function() task.cancel(ClientTweaks.FFlagsThread) end)
+        ClientTweaks.FFlagsThread = nil
+    end
+    ClientTweaks.setNoAnimations(false)
+    ClientTweaks.setAntiLava(false)
+    ClientTweaks.setCameraSkew(false)
+end
+
+function ClientTweaks.getDiagnostics()
+    local connCount = (ClientTweaks.FFlagsAddedConn and 1 or 0)
+        + (ClientTweaks.NoAnimConn and 1 or 0)
+        + (ClientTweaks.AntiLavaConn and 1 or 0)
+        + (ClientTweaks.SkewConn and 1 or 0)
+    return {
+        Name = "ClientTweaks",
+        Active = (ClientTweaks.FFlags1Enabled or ClientTweaks.NoAnimEnabled or ClientTweaks.AntiLavaEnabled or ClientTweaks.CameraSkewEnabled) == true,
+        Connections = connCount,
+        Threads = ClientTweaks.FFlagsThread and 1 or 0,
+    }
 end
 
 return ClientTweaks

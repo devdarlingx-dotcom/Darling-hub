@@ -120,4 +120,21 @@ function SanguineBoost.setFloatingVisible(visible)
     end
 end
 
+function SanguineBoost.destroy()
+    SanguineBoost.disable()
+    if SanguineBoost.Widget then
+        pcall(function() SanguineBoost.Widget:Destroy() end)
+        SanguineBoost.Widget = nil
+    end
+end
+
+function SanguineBoost.getDiagnostics()
+    local connCount = SanguineBoost.Connection and 1 or 0
+    return {
+        Connections = connCount,
+        Threads = 0,
+        Active = SanguineBoost.Enabled,
+    }
+end
+
 return SanguineBoost

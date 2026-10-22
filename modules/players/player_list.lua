@@ -11,6 +11,8 @@ local PlayerList = {}
 PlayerList.Cards = {}
 PlayerList.Connections = {}
 PlayerList.CurrentSpectating = nil
+PlayerList.Mounted = false
+PlayerList.PollThread = nil
 
 -- Global blacklist table for aimbot exclusion
 _G.DarlingBlacklistedPlayers = _G.DarlingBlacklistedPlayers or {}
@@ -472,18 +474,31 @@ function PlayerList.createPlayerCard(player, parentFrame)
 
     updateHealth()
 
-    -- Hook CharacterAdded & HealthChanged
+    local cardConns = {}
+    local charConns = {}
+
+    local function cleanupCharConns()
+        for _, c in ipairs(charConns) do
+            pcall(function() c:Disconnect() end)
+        end
+        table.clear(charConns)
+    end
+
+    -- Hook CharacterAdded & HealthChanged & MaxHealth
     local function hookChar(c)
+        cleanupCharConns()
         if not c then return end
         local hum = c:WaitForChild("Humanoid", 4)
         if hum then
             updateHealth()
-            hum.HealthChanged:Connect(updateHealth)
+            table.insert(charConns, hum.HealthChanged:Connect(updateHealth))
+            table.insert(charConns, hum:GetPropertyChangedSignal("MaxHealth"):Connect(updateHealth))
         end
     end
 
     if player.Character then hookChar(player.Character) end
-    player.CharacterAdded:Connect(hookChar)
+    table.insert(cardConns, player.CharacterAdded:Connect(hookChar))
+    table.insert(cardConns, player.CharacterRemoving:Connect(cleanupCharConns))
 
     -- Save reference
     PlayerList.Cards[uid] = {
@@ -494,9 +509,30 @@ function PlayerList.createPlayerCard(player, parentFrame)
         SpectateBtn = specBtn,
         SpectateStroke = specStroke,
         UpdateHealth = updateHealth,
+        Connections = cardConns,
+        CharConnections = charConns,
     }
 
     PlayerList.updateCardButtons(uid)
+end
+
+function PlayerList.removeCard(uid)
+    local item = PlayerList.Cards[uid]
+    if not item then return end
+    if item.CharConnections then
+        for _, c in ipairs(item.CharConnections) do
+            pcall(function() c:Disconnect() end)
+        end
+    end
+    if item.Connections then
+        for _, c in ipairs(item.Connections) do
+            pcall(function() c:Disconnect() end)
+        end
+    end
+    if item.Card and item.Card.Parent then
+        pcall(function() item.Card:Destroy() end)
+    end
+    PlayerList.Cards[uid] = nil
 end
 
 function PlayerList.updateCardButtons(uid)
@@ -550,6 +586,10 @@ end
 -- ============================================================================
 function PlayerList.mount(container)
     if not container then return end
+    if PlayerList.Mounted then
+        PlayerList.destroy()
+    end
+    PlayerList.Mounted = true
 
     local targetFrame = container
     if typeof(container) == "table" then
@@ -605,14 +645,11 @@ function PlayerList.mount(container)
         if PlayerList.CurrentSpectating == pl then
             PlayerList.stopSpectate()
         end
-        if PlayerList.Cards[pl.UserId] and PlayerList.Cards[pl.UserId].Card then
-            PlayerList.Cards[pl.UserId].Card:Destroy()
-            PlayerList.Cards[pl.UserId] = nil
-        end
+        PlayerList.removeCard(pl.UserId)
     end))
 
     -- Periodic health poll every 2s
-    table.insert(PlayerList.Connections, task.spawn(function()
+    PlayerList.PollThread = task.spawn(function()
         while true do
             task.wait(2)
             for _, item in pairs(PlayerList.Cards) do
@@ -621,22 +658,46 @@ function PlayerList.mount(container)
                 end
             end
         end
-    end))
+    end)
 end
 
 function PlayerList.destroy()
+    PlayerList.Mounted = false
     PlayerList.stopSpectate()
+    if PlayerList.PollThread then
+        pcall(function() task.cancel(PlayerList.PollThread) end)
+        PlayerList.PollThread = nil
+    end
     for _, c in ipairs(PlayerList.Connections) do
         if typeof(c) == "RBXScriptConnection" then
             pcall(function() c:Disconnect() end)
+        elseif typeof(c) == "thread" then
+            pcall(function() task.cancel(c) end)
         end
     end
     PlayerList.Connections = {}
-    if PlayerList.ListFrame then
-        PlayerList.ListFrame:Destroy()
-        PlayerList.ListFrame = nil
+    for uid, _ in pairs(PlayerList.Cards) do
+        PlayerList.removeCard(uid)
     end
     PlayerList.Cards = {}
+    if PlayerList.ListFrame and PlayerList.ListFrame.Parent then
+        pcall(function() PlayerList.ListFrame:Destroy() end)
+    end
+    PlayerList.ListFrame = nil
+end
+
+function PlayerList.getDiagnostics()
+    local connCount = #PlayerList.Connections
+    for _, item in pairs(PlayerList.Cards) do
+        if item.Connections then connCount = connCount + #item.Connections end
+        if item.CharConnections then connCount = connCount + #item.CharConnections end
+    end
+    local threadCount = PlayerList.PollThread and 1 or 0
+    return {
+        Connections = connCount,
+        Threads = threadCount,
+        Active = PlayerList.Mounted == true,
+    }
 end
 
 return PlayerList

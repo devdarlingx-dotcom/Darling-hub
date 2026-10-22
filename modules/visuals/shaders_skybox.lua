@@ -122,4 +122,30 @@ function ShadersSkybox.setSkybox(state, choice)
     ShadersSkybox.applySkybox()
 end
 
+function ShadersSkybox.destroy()
+    ShadersSkybox.setShaders(false)
+    ShadersSkybox.setSkybox(false)
+    if ShadersSkybox.ColorCorrection then
+        pcall(function() ShadersSkybox.ColorCorrection:Destroy() end)
+        ShadersSkybox.ColorCorrection = nil
+    end
+    if ShadersSkybox.Bloom then
+        pcall(function() ShadersSkybox.Bloom:Destroy() end)
+        ShadersSkybox.Bloom = nil
+    end
+    if ShadersSkybox.ActiveSky then
+        pcall(function() ShadersSkybox.ActiveSky:Destroy() end)
+        ShadersSkybox.ActiveSky = nil
+    end
+end
+
+function ShadersSkybox.getDiagnostics()
+    return {
+        Name = "ShadersSkybox",
+        Active = (ShadersSkybox.ShadersEnabled or ShadersSkybox.SkyboxEnabled) == true,
+        Connections = 0,
+        Threads = 0,
+    }
+end
+
 return ShadersSkybox

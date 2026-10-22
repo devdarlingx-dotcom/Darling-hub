@@ -19,15 +19,48 @@ function ShipPainter.findPlayerShip()
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
 
+    -- Fast path: if player is sitting on the ship seat
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.SeatPart then
+        local seat = hum.SeatPart
+        local model = seat
+        while model.Parent and model.Parent ~= Workspace and not model:IsA("Model") do
+            model = model.Parent
+        end
+        if model:IsA("Model") then
+            ShipPainter.CurrentShip = model
+            ShipPainter.saveOriginalColors(model)
+            return model
+        end
+    end
+
     local closestSeat = nil
     local minDist = math.huge
 
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("VehicleSeat") or obj:IsA("Seat") then
-            local dist = (obj.Position - root.Position).Magnitude
-            if dist < minDist and dist < 500 then
-                minDist = dist
-                closestSeat = obj
+    -- Check Workspace.Boats or Workspace.Ships first before full scan
+    local searchContainer = Workspace:FindFirstChild("Boats") or Workspace:FindFirstChild("Ships") or Workspace:FindFirstChild("Vehicles")
+    local candidates = searchContainer and searchContainer:GetDescendants() or nil
+
+    if candidates then
+        for _, obj in ipairs(candidates) do
+            if obj:IsA("VehicleSeat") or obj:IsA("Seat") then
+                local dist = (obj.Position - root.Position).Magnitude
+                if dist < minDist and dist < 500 then
+                    minDist = dist
+                    closestSeat = obj
+                end
+            end
+        end
+    end
+
+    if not closestSeat then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("VehicleSeat") or obj:IsA("Seat") then
+                local dist = (obj.Position - root.Position).Magnitude
+                if dist < minDist and dist < 500 then
+                    minDist = dist
+                    closestSeat = obj
+                end
             end
         end
     end
@@ -57,8 +90,15 @@ end
 
 function ShipPainter.saveOriginalColors(ship)
     if not ship then return end
+    ShipPainter.CachedParts = {
+        BaseParts = {},
+        Surfaces = {},
+        Decals = {}
+    }
+    ShipPainter.CachedShip = ship
     for _, part in ipairs(ship:GetDescendants()) do
         if part:IsA("BasePart") then
+            table.insert(ShipPainter.CachedParts.BaseParts, part)
             if not part:GetAttribute("OrigColor") then
                 part:SetAttribute("OrigColor", part.Color)
             end
@@ -66,9 +106,12 @@ function ShipPainter.saveOriginalColors(ship)
                 part:SetAttribute("OrigMaterial", part.Material.Name)
             end
         elseif part:IsA("Decal") or part:IsA("Texture") then
+            table.insert(ShipPainter.CachedParts.Decals, part)
             if not part:GetAttribute("OrigTransparency") then
                 part:SetAttribute("OrigTransparency", part.Transparency)
             end
+        elseif part:IsA("SurfaceAppearance") then
+            table.insert(ShipPainter.CachedParts.Surfaces, part)
         end
     end
 end
@@ -80,27 +123,34 @@ function ShipPainter.paintShip(color)
     if not ShipPainter.CurrentShip then return false end
     ShipPainter.CurrentColor = color
 
-    for _, part in ipairs(ShipPainter.CurrentShip:GetDescendants()) do
-        if part:IsA("BasePart") then
+    if not ShipPainter.CachedParts or ShipPainter.CachedShip ~= ShipPainter.CurrentShip then
+        ShipPainter.saveOriginalColors(ShipPainter.CurrentShip)
+    end
+
+    local cached = ShipPainter.CachedParts
+    if cached then
+        for _, part in ipairs(cached.BaseParts) do
             pcall(function()
                 part.Color = color
                 part.Material = Enum.Material.Neon
             end)
-        elseif part:IsA("SurfaceAppearance") then
-            pcall(function() part.Color = color end)
-        elseif part:IsA("Decal") or part:IsA("Texture") then
-            pcall(function() part.Transparency = 1 end)
+        end
+        for _, surf in ipairs(cached.Surfaces) do
+            pcall(function() surf.Color = color end)
+        end
+        for _, dec in ipairs(cached.Decals) do
+            pcall(function() dec.Transparency = 1 end)
         end
     end
     return true
 end
 
 function ShipPainter.resetShip()
+    ShipPainter.setRainbow(false)
     if not ShipPainter.CurrentShip then
         ShipPainter.findPlayerShip()
     end
     if not ShipPainter.CurrentShip then return false end
-    ShipPainter.IsRainbow = false
 
     for _, part in ipairs(ShipPainter.CurrentShip:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -115,6 +165,8 @@ function ShipPainter.resetShip()
             if oTrans then part.Transparency = oTrans end
         end
     end
+    ShipPainter.CachedParts = nil
+    ShipPainter.CachedShip = nil
     return true
 end
 
@@ -131,6 +183,23 @@ function ShipPainter.setRainbow(state)
         pcall(function() ShipPainter.HeartbeatConnection:Disconnect() end)
         ShipPainter.HeartbeatConnection = nil
     end
+end
+
+function ShipPainter.destroy()
+    ShipPainter.setRainbow(false)
+    ShipPainter.resetShip()
+    ShipPainter.CurrentShip = nil
+    ShipPainter.CachedParts = nil
+    ShipPainter.CachedShip = nil
+end
+
+function ShipPainter.getDiagnostics()
+    return {
+        Name = "ShipPainter",
+        Active = ShipPainter.IsRainbow or (ShipPainter.CurrentShip ~= nil),
+        Connections = ShipPainter.HeartbeatConnection and 1 or 0,
+        Threads = 0,
+    }
 end
 
 return ShipPainter

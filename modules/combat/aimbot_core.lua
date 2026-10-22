@@ -160,10 +160,20 @@ end
 -- ============================================================================
 -- TEAM & ALLY CHECKS (BLOX FRUITS SPECIFIC)
 -- ============================================================================
-local function isAlly(player)
-    if not player or not LocalPlayer then return false end
+local allyCache = {}
+local lastAllyScan = 0
+local ALLY_CACHE_TTL = 1.0
+
+local function refreshAllies()
+    local now = os.clock()
+    if (now - lastAllyScan) < ALLY_CACHE_TTL then
+        return
+    end
+    lastAllyScan = now
+    allyCache = {}
+    if not LocalPlayer then return end
     local myGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not myGui then return false end
+    if not myGui then return end
     local scrolling = myGui:FindFirstChild("Main")
         and myGui.Main:FindFirstChild("Allies")
         and myGui.Main.Allies:FindFirstChild("Container")
@@ -171,13 +181,18 @@ local function isAlly(player)
         and myGui.Main.Allies.Container.Allies:FindFirstChild("ScrollingFrame")
 
     if scrolling then
-        for _, item in pairs(scrolling:GetDescendants()) do
-            if item:IsA("ImageButton") and item.Name == player.Name then
-                return true
+        for _, item in ipairs(scrolling:GetDescendants()) do
+            if item:IsA("ImageButton") then
+                allyCache[item.Name] = true
             end
         end
     end
-    return false
+end
+
+local function isAlly(player)
+    if not player or not LocalPlayer then return false end
+    refreshAllies()
+    return allyCache[player.Name] == true
 end
 
 local function isEnemy(targetPlayer)
@@ -600,8 +615,20 @@ function Core.installHooks()
 
         rawMt.__namecall = newcclosure(function(self, ...)
             local method = getnamecallmethod()
-            local args = { ... }
+            if method ~= "FireServer" and method ~= "InvokeServer" then
+                return oldNamecall(self, ...)
+            end
 
+            if not (Core.PlayerAimEnabled or Core.NPCAimEnabled) then
+                return oldNamecall(self, ...)
+            end
+
+            local sName = tostring(self)
+            if sName ~= "RemoteEvent" and sName ~= "CommE" and sName ~= "RemoteFunction" and sName ~= "CommF_" then
+                return oldNamecall(self, ...)
+            end
+
+            local args = { ... }
             if args[1] == "TAP" then
                 return oldNamecall(self, ...)
             end
@@ -611,35 +638,39 @@ function Core.installHooks()
                 Core.setCurrentSkillKey(skillKey)
             end
 
-            local activeKey = skillKey or Core.CurrentSkillKey
-            local isBlacklisted = false
-            if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
-                isBlacklisted = true
+            if not Core.CurrentTargetPart then
+                return oldNamecall(self, ...)
             end
 
-            if not isBlacklisted and (Core.PlayerAimEnabled or Core.NPCAimEnabled) and Core.CurrentTargetPart then
-                local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (string.find(Core.CurrentTool.Name, "Sword") or string.find(Core.CurrentTool.Name, "Buddy")))
-                local targetPos = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
-                if targetPos then
-                    if method == "FireServer" or method == "InvokeServer" then
-                        local sName = tostring(self)
-                        if sName == "RemoteEvent" or sName == "CommE" or sName == "RemoteFunction" or sName == "CommF_" then
-                            for i, v in ipairs(args) do
-                                if typeof(v) == "Vector3" then
-                                    args[i] = targetPos
-                                end
-                            end
+            local activeKey = skillKey or Core.CurrentSkillKey
+            if activeKey and Core.isKeyBlacklisted(Core.CurrentToolCategory, activeKey) then
+                return oldNamecall(self, ...)
+            end
 
-                            -- sword invokeserver redirection
-                            if method == "InvokeServer" and (type(args[1]) == "string" and table.find(SKILL_KEYS, args[1])) then
-                                args[2] = targetPos
-                            end
-                        end
-                    end
+            local isSword = (Core.CurrentToolCategory == "Sword") or (Core.CurrentTool and (string.find(Core.CurrentTool.Name, "Sword") or string.find(Core.CurrentTool.Name, "Buddy")))
+            local targetPos = (isSword and Core.CurrentTargetRawPosition) or Core.CurrentTargetPosition or Core.CurrentTargetRawPosition
+            if not targetPos then
+                return oldNamecall(self, ...)
+            end
+
+            local modified = false
+            for i, v in ipairs(args) do
+                if typeof(v) == "Vector3" then
+                    args[i] = targetPos
+                    modified = true
                 end
             end
 
-            return oldNamecall(self, unpack(args))
+            -- sword invokeserver redirection
+            if method == "InvokeServer" and (type(args[1]) == "string" and table.find(SKILL_KEYS, args[1])) then
+                args[2] = targetPos
+                modified = true
+            end
+
+            if modified then
+                return oldNamecall(self, unpack(args))
+            end
+            return oldNamecall(self, ...)
         end)
 
         pcall(setreadonly, rawMt, true)
@@ -733,6 +764,57 @@ function Core.stopLoop()
     Core.CurrentTargetCharacter = nil
 end
 
+function Core.destroy()
+    Core.PlayerAimEnabled = false
+    Core.NPCAimEnabled = false
+    if Core.RenderConnection then
+        pcall(function() Core.RenderConnection:Disconnect() end)
+        Core.RenderConnection = nil
+    end
+    for _, c in ipairs(Core.CharConnections) do
+        pcall(function() c:Disconnect() end)
+    end
+    Core.CharConnections = {}
+    if Core.InputConn then
+        pcall(function() Core.InputConn:Disconnect() end)
+        Core.InputConn = nil
+    end
+    if Core.CharAddedConn then
+        pcall(function() Core.CharAddedConn:Disconnect() end)
+        Core.CharAddedConn = nil
+    end
+    for _, c in ipairs(Core.MobileHookConns or {}) do
+        pcall(function() c:Disconnect() end)
+    end
+    Core.MobileHookConns = {}
+    if Core.MobileHookThread then
+        pcall(function() task.cancel(Core.MobileHookThread) end)
+        Core.MobileHookThread = nil
+    end
+    lastTargetScanTick = 0
+    Core.CurrentTargetPart = nil
+    Core.CurrentTargetRawPosition = nil
+    Core.CurrentTargetPosition = nil
+    Core.CurrentTargetCharacter = nil
+    Core.CurrentTool = nil
+    Core.CurrentSkillKey = nil
+end
+
+function Core.getDiagnostics()
+    local connCount = (Core.RenderConnection and 1 or 0)
+        + #Core.CharConnections
+        + (Core.InputConn and 1 or 0)
+        + (Core.CharAddedConn and 1 or 0)
+        + #(Core.MobileHookConns or {})
+    return {
+        Name = "AimbotCore",
+        Active = (Core.PlayerAimEnabled or Core.NPCAimEnabled) == true,
+        Connections = connCount,
+        Threads = Core.MobileHookThread and 1 or 0,
+        HasTarget = Core.CurrentTargetPart ~= nil,
+    }
+end
+
 -- ============================================================================
 -- INPUT AND CHARACTER HOOKS
 -- ============================================================================
@@ -759,11 +841,11 @@ local function setupCharacter(char)
 end
 
 if LocalPlayer then
-    LocalPlayer.CharacterAdded:Connect(setupCharacter)
+    Core.CharAddedConn = LocalPlayer.CharacterAdded:Connect(setupCharacter)
     if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
 end
 
-UserInputService.InputBegan:Connect(function(input, processed)
+Core.InputConn = UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     local keyMap = {
         [Enum.KeyCode.Z] = "Z",
@@ -777,7 +859,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 -- Mobile buttons hook
-task.spawn(function()
+Core.MobileHookConns = {}
+Core.MobileHookThread = task.spawn(function()
     while not LocalPlayer or not LocalPlayer:FindFirstChild("PlayerGui") do task.wait(0.5) end
     local pGui = LocalPlayer.PlayerGui
     local main = pGui:WaitForChild("Main", 10)
@@ -786,7 +869,7 @@ task.spawn(function()
         if skills then
             local function hookBtn(b)
                 if (b:IsA("ImageButton") or b:IsA("TextButton")) and table.find(SKILL_KEYS, b.Name) then
-                    b.Activated:Connect(function() Core.setCurrentSkillKey(b.Name) end)
+                    table.insert(Core.MobileHookConns, b.Activated:Connect(function() Core.setCurrentSkillKey(b.Name) end))
                 end
             end
             for _, wf in ipairs(skills:GetChildren()) do

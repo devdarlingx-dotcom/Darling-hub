@@ -213,11 +213,16 @@ local function applyVisualColor(inst, targetColor)
     end)
 end
 
+local vfxScanThread = nil
+local vfxScanToken = 0
+
 local function scanAndApply(root, targetColor)
     if not root then return end
     applyVisualColor(root, targetColor)
     local descs = root:GetDescendants()
+    local myToken = vfxScanToken
     for i = 1, #descs do
+        if myToken ~= vfxScanToken then return end
         applyVisualColor(descs[i], targetColor)
         if i % 300 == 0 then
             task.wait()
@@ -227,19 +232,28 @@ end
 
 function DarlingSkins.refreshAllVFX()
     if not DarlingSkins.VFX.Enabled then return end
-    task.spawn(function()
+    if vfxScanThread then
+        pcall(function() task.cancel(vfxScanThread) end)
+        vfxScanThread = nil
+    end
+    vfxScanToken = vfxScanToken + 1
+    local currentToken = vfxScanToken
+    vfxScanThread = task.spawn(function()
         local col = DarlingSkins.VFX.ActiveColor
         local char = LocalPlayer.Character
-        if char then scanAndApply(char, col) end
+        if char and currentToken == vfxScanToken then scanAndApply(char, col) end
 
         local wo = Workspace:FindFirstChild("_WorldOrigin")
         if wo and (DarlingSkins.VFX.AffectEnvironment or DarlingSkins.VFX.AffectSkills or DarlingSkins.VFX.AffectSwords) then
-            scanAndApply(wo, col)
+            if currentToken == vfxScanToken then scanAndApply(wo, col) end
         end
 
         local fx = Workspace:FindFirstChild("Effects") or Workspace:FindFirstChild("FX")
         if fx and DarlingSkins.VFX.AffectSkills then
-            scanAndApply(fx, col)
+            if currentToken == vfxScanToken then scanAndApply(fx, col) end
+        end
+        if currentToken == vfxScanToken then
+            vfxScanThread = nil
         end
     end)
 end
@@ -951,12 +965,42 @@ function DarlingSkins.cloneByUserId(identifier)
     return false, "Failed to load HumanoidDescription for User ID: " .. tostring(userId)
 end
 
-LocalPlayer.CharacterAdded:Connect(function(newChar)
+DarlingSkins.CharAddedConn = LocalPlayer.CharacterAdded:Connect(function(newChar)
     if DarlingSkins.Character.Enabled then
         task.delay(0.3, function()
             DarlingSkins.applyCharacterSkin(DarlingSkins.Character.ActivePreset, DarlingSkins.Character.ActiveColor)
         end)
     end
 end)
+
+function DarlingSkins.destroy()
+    DarlingSkins.setVFXEnabled(false)
+    DarlingSkins.stopVFXWatchers()
+    if vfxScanThread then
+        pcall(function() task.cancel(vfxScanThread) end)
+        vfxScanThread = nil
+    end
+    vfxScanToken = vfxScanToken + 1
+    DarlingSkins.resetOriginalVFX()
+    DarlingSkins.resetCharacterSkin()
+    DarlingSkins.resetAllToolSkins()
+    if DarlingSkins.CharAddedConn then
+        pcall(function() DarlingSkins.CharAddedConn:Disconnect() end)
+        DarlingSkins.CharAddedConn = nil
+    end
+end
+
+function DarlingSkins.getDiagnostics()
+    local toolListenerCount = 0
+    for _ in pairs(DarlingSkins.Tools.Listeners or {}) do toolListenerCount = toolListenerCount + 1 end
+    for _ in pairs(DarlingSkins.Tools.AllSlotsListeners or {}) do toolListenerCount = toolListenerCount + 1 end
+    local connCount = #DarlingSkins.VFX.Connections + toolListenerCount + (DarlingSkins.CharAddedConn and 1 or 0)
+    return {
+        Name = "SkinsSystem",
+        Active = (DarlingSkins.VFX.Enabled or DarlingSkins.Character.Enabled) == true,
+        Connections = connCount,
+        Threads = vfxScanThread and 1 or 0,
+    }
+end
 
 return DarlingSkins

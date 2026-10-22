@@ -260,6 +260,19 @@ function FOV.destroy()
         pcall(function() drawingCircle:Remove() end)
         drawingCircle = nil
     end
+    if overlayGui then
+        pcall(function() overlayGui:Destroy() end)
+        overlayGui = nil
+    end
+end
+
+function FOV.getDiagnostics()
+    return {
+        Name = "FOV",
+        Active = isEnabled,
+        Connections = renderConnection and 1 or 0,
+        Threads = 0,
+    }
 end
 
 return FOV

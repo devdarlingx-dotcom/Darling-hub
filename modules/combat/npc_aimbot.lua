@@ -73,4 +73,16 @@ function NPCAimbot.isEnabled()
     return core and core.NPCAimEnabled or false
 end
 
+NPCAimbot.destroy = NPCAimbot.disable
+
+function NPCAimbot.getDiagnostics()
+    local core = getCore()
+    return {
+        Name = "NPCAimbot",
+        Active = core and core.NPCAimEnabled or false,
+        Connections = 0,
+        Threads = 0,
+    }
+end
+
 return NPCAimbot

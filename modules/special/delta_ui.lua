@@ -3870,23 +3870,18 @@ local function C_131()
 	local RunService = game:GetService("RunService")
 	local FpsLabel = Network.Overlay.Holder.Information.Memory;
 	local TimeFunction = RunService:IsRunning() and time or os.clock;
-	local LastIteration, Start;
-	local FrameUpdateTable = {}
+	local Start = TimeFunction();
+	local frameCount = 0
 	local function HeartbeatUpdate()
-		LastIteration = TimeFunction()
-		for Index = #FrameUpdateTable, 1, -1 do
-			FrameUpdateTable[Index + 1] = FrameUpdateTable[Index] >= LastIteration - 1 and FrameUpdateTable[Index] or nil
-		end;
-		FrameUpdateTable[1] = LastIteration;
-		local elapsedTime = TimeFunction() - Start;
-		local updateInterval = 1;
-		if elapsedTime >= updateInterval then
-			FpsLabel.Text = "<font color=\"#4FA4F2\">" .. tostring(math.floor(#FrameUpdateTable / elapsedTime)) .. "</font> FPS"
+		frameCount = frameCount + 1
+		local elapsedTime = TimeFunction() - Start
+		if elapsedTime >= 1 then
+			FpsLabel.Text = "<font color=\"#4FA4F2\">" .. tostring(math.floor(frameCount / elapsedTime)) .. "</font> FPS"
+			frameCount = 0
 			Start = TimeFunction()
 		end
 	end;
-	Start = TimeFunction()
-	RunService.Heartbeat:Connect(HeartbeatUpdate)
+	DELTA.HeartbeatConn = RunService.Heartbeat:Connect(HeartbeatUpdate)
 end;
 task.spawn(C_131)
 local function C_177()
@@ -3931,31 +3926,41 @@ local function C_178()
 		end;
 		return total
 	end;
-	logserv.MessageOut:Connect(function(output, OutputType)
+	local MAX_CONSOLE_ROWS = 200
+	local function appendConsoleMsg(template, text)
+		local header = script.Parent.Console.ScrollingFrame.Header
+		local msg = template:Clone()
+		msg.Name = tostring(GetTotalOutputs()) .. msg.Name
+		msg.Visible = true
+		msg.Content.Text = text
+		msg.Parent = header
+
+		local children = header:GetChildren()
+		local count = 0
+		for _, c in ipairs(children) do
+			if c:IsA("Frame") then
+				count = count + 1
+			end
+		end
+		if count > MAX_CONSOLE_ROWS then
+			for _, c in ipairs(children) do
+				if c:IsA("Frame") then
+					c:Destroy()
+					break
+				end
+			end
+		end
+	end
+
+	DELTA.LogConn = logserv.MessageOut:Connect(function(output, OutputType)
 		if OutputType == Enum.MessageType.MessageOutput then
-			local msg = elements.Output:Clone()
-			msg.Parent = script.Parent.Console.ScrollingFrame.Header;
-			msg.Name = tostring(GetTotalOutputs()) .. msg.Name;
-			msg.Visible = true;
-			msg.Content.Text = output
+			appendConsoleMsg(elements.Output, output)
 		elseif OutputType == Enum.MessageType.MessageError then
-			local msg = elements.Error:Clone()
-			msg.Parent = script.Parent.Console.ScrollingFrame.Header;
-			msg.Name = tostring(GetTotalOutputs()) .. msg.Name;
-			msg.Visible = true;
-			msg.Content.Text = output
+			appendConsoleMsg(elements.Error, output)
 		elseif OutputType == Enum.MessageType.MessageWarning then
-			local msg = elements.Warn:Clone()
-			msg.Parent = script.Parent.Console.ScrollingFrame.Header;
-			msg.Name = tostring(GetTotalOutputs()) .. msg.Name;
-			msg.Visible = true;
-			msg.Content.Text = output
+			appendConsoleMsg(elements.Warn, output)
 		elseif OutputType == Enum.MessageType.MessageInfo then
-			local msg = elements.Info:Clone()
-			msg.Parent = script.Parent.Console.ScrollingFrame.Header;
-			msg.Name = tostring(GetTotalOutputs()) .. msg.Name;
-			msg.Visible = true;
-			msg.Content.Text = output
+			appendConsoleMsg(elements.Info, output)
 		end
 	end)
 	script.Parent.Buttons.Clear.MouseButton1Click:Connect(function()
@@ -4574,4 +4579,52 @@ coroutine.wrap(function()
 		DELTA["1"].Enabled = true
 	end
 end)()
+
+function DELTA.destroy()
+	if DELTA.HeartbeatConn then
+		pcall(function() DELTA.HeartbeatConn:Disconnect() end)
+		DELTA.HeartbeatConn = nil
+	end
+	if DELTA.LogConn then
+		pcall(function() DELTA.LogConn:Disconnect() end)
+		DELTA.LogConn = nil
+	end
+	if DELTA["Ui"] then
+		pcall(function() DELTA["Ui"]:Destroy() end)
+	end
+	if DELTA["1"] then
+		pcall(function() DELTA["1"]:Destroy() end)
+	end
+	_G.DarlingDeltaUI = nil
+end
+
+function DELTA.getDiagnostics()
+	local connCount = (DELTA.HeartbeatConn and 1 or 0) + (DELTA.LogConn and 1 or 0)
+	return {
+		Name = "DeltaUI",
+		Active = DELTA["1"] ~= nil and DELTA["1"].Parent ~= nil,
+		Connections = connCount,
+		Threads = 0,
+	}
+end
+
+pcall(function()
+	DELTA["1"].Destroying:Connect(function()
+		if DELTA.HeartbeatConn then
+			pcall(function() DELTA.HeartbeatConn:Disconnect() end)
+			DELTA.HeartbeatConn = nil
+		end
+		if DELTA.LogConn then
+			pcall(function() DELTA.LogConn:Disconnect() end)
+			DELTA.LogConn = nil
+		end
+		if DELTA["Ui"] then
+			pcall(function() DELTA["Ui"]:Destroy() end)
+		end
+		_G.DarlingDeltaUI = nil
+	end)
+end)
+
+_G.DarlingDeltaUI = DELTA
+
 return DELTA["1"], require

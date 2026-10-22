@@ -240,6 +240,19 @@ function Tracers.destroy()
         pcall(function() drawingLine:Remove() end)
         drawingLine = nil
     end
+    if overlayGui then
+        pcall(function() overlayGui:Destroy() end)
+        overlayGui = nil
+    end
+end
+
+function Tracers.getDiagnostics()
+    return {
+        Name = "Tracers",
+        Active = isEnabled,
+        Connections = renderConnection and 1 or 0,
+        Threads = 0,
+    }
 end
 
 return Tracers

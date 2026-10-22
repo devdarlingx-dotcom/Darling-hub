@@ -18,15 +18,47 @@ function ShipResizer.findPlayerShip()
     local root = char:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
 
+    -- Fast path: if player is sitting on the ship seat
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.SeatPart then
+        local seat = hum.SeatPart
+        local model = seat
+        while model.Parent and model.Parent ~= Workspace and not model:IsA("Model") do
+            model = model.Parent
+        end
+        if model:IsA("Model") then
+            ShipResizer.CurrentShip = model
+            return model
+        end
+    end
+
     local closestSeat = nil
     local minDist = math.huge
 
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("VehicleSeat") or obj:IsA("Seat") then
-            local dist = (obj.Position - root.Position).Magnitude
-            if dist < minDist and dist < 500 then
-                minDist = dist
-                closestSeat = obj
+    -- Check Workspace.Boats or Workspace.Ships first before full scan
+    local searchContainer = Workspace:FindFirstChild("Boats") or Workspace:FindFirstChild("Ships") or Workspace:FindFirstChild("Vehicles")
+    local candidates = searchContainer and searchContainer:GetDescendants() or nil
+
+    if candidates then
+        for _, obj in ipairs(candidates) do
+            if obj:IsA("VehicleSeat") or obj:IsA("Seat") then
+                local dist = (obj.Position - root.Position).Magnitude
+                if dist < minDist and dist < 500 then
+                    minDist = dist
+                    closestSeat = obj
+                end
+            end
+        end
+    end
+
+    if not closestSeat then
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj:IsA("VehicleSeat") or obj:IsA("Seat") then
+                local dist = (obj.Position - root.Position).Magnitude
+                if dist < minDist and dist < 500 then
+                    minDist = dist
+                    closestSeat = obj
+                end
             end
         end
     end
@@ -79,35 +111,46 @@ function ShipResizer.setShipSize(multiplier)
         end
     end
 
-    if not ShipResizer.HeartbeatConnection and ShipResizer.CurrentScale > 1 then
-        ShipResizer.HeartbeatConnection = RunService.Heartbeat:Connect(function()
-            if ShipResizer.CurrentShip and ShipResizer.CurrentShip.Parent then
-                if ShipResizer.CurrentScale > 1 and ShipResizer.CurrentShip:IsA("Model") then
-                    pcall(function()
-                        if not ShipResizer.CurrentShip:GetScale() or ShipResizer.CurrentShip:GetScale() ~= ShipResizer.CurrentScale then
-                            ShipResizer.CurrentShip:ScaleTo(ShipResizer.CurrentScale)
-                        end
-                    end)
+    if ShipResizer.CurrentScale > 1 then
+        if not ShipResizer.HeartbeatConnection then
+            ShipResizer.HeartbeatConnection = RunService.Heartbeat:Connect(function()
+                if ShipResizer.CurrentShip and ShipResizer.CurrentShip.Parent then
+                    if ShipResizer.CurrentScale > 1 and ShipResizer.CurrentShip:IsA("Model") then
+                        pcall(function()
+                            if not ShipResizer.CurrentShip:GetScale() or ShipResizer.CurrentShip:GetScale() ~= ShipResizer.CurrentScale then
+                                ShipResizer.CurrentShip:ScaleTo(ShipResizer.CurrentScale)
+                            end
+                        end)
+                    end
+                else
+                    ShipResizer.CurrentShip = nil
+                    if ShipResizer.HeartbeatConnection then
+                        pcall(function() ShipResizer.HeartbeatConnection:Disconnect() end)
+                        ShipResizer.HeartbeatConnection = nil
+                    end
                 end
-            else
-                ShipResizer.CurrentShip = nil
-            end
-        end)
+            end)
+        end
+    else
+        if ShipResizer.HeartbeatConnection then
+            pcall(function() ShipResizer.HeartbeatConnection:Disconnect() end)
+            ShipResizer.HeartbeatConnection = nil
+        end
     end
     return true
 end
 
 function ShipResizer.resetShipSize()
     ShipResizer.CurrentScale = 1
-    if not ShipResizer.CurrentShip then
-        ShipResizer.findPlayerShip()
-    end
-    if not ShipResizer.CurrentShip then return false end
-
     if ShipResizer.HeartbeatConnection then
         pcall(function() ShipResizer.HeartbeatConnection:Disconnect() end)
         ShipResizer.HeartbeatConnection = nil
     end
+
+    if not ShipResizer.CurrentShip then
+        ShipResizer.findPlayerShip()
+    end
+    if not ShipResizer.CurrentShip then return false end
 
     if ShipResizer.CurrentShip:IsA("Model") then
         pcall(function()
@@ -126,6 +169,20 @@ function ShipResizer.resetShipSize()
         end
     end
     return true
+end
+
+function ShipResizer.destroy()
+    ShipResizer.resetShipSize()
+    ShipResizer.CurrentShip = nil
+end
+
+function ShipResizer.getDiagnostics()
+    return {
+        Name = "ShipResizer",
+        Active = (ShipResizer.CurrentScale ~= 1) or (ShipResizer.CurrentShip ~= nil),
+        Connections = ShipResizer.HeartbeatConnection and 1 or 0,
+        Threads = 0,
+    }
 end
 
 return ShipResizer

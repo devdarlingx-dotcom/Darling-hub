@@ -82,9 +82,19 @@ local darlingIcon = loadCustomMediaAsset(initialDarlingUrl, "darling_icon_d_bc0f
 local SharedEnv = (getgenv and getgenv()) or _G
 local RepoBase = "https://raw.githubusercontent.com/devdarlingx-dotcom/Darling-hub/main/"
 
+-- Duplicate instance protection: cleanly unload any previously running hub
+if _G.DarlingHub and type(_G.DarlingHub.UnloadAll) == "function" then
+    pcall(function() _G.DarlingHub:UnloadAll() end)
+elseif SharedEnv.DarlingHub and type(SharedEnv.DarlingHub.UnloadAll) == "function" then
+    pcall(function() SharedEnv.DarlingHub:UnloadAll() end)
+end
+
 local DarlingHub = {
     Modules = {},
     Overlay = nil,
+    Window = nil,
+    InputBeganConn = nil,
+    DiagnosticThread = nil,
     -- Shared settings: UI writes here, modules read here (no module load needed)
     Settings = {
         Aim = {
@@ -212,14 +222,44 @@ function DarlingHub:Toggle(relPath, state)
 end
 
 function DarlingHub:UnloadAll()
+    if self.DiagnosticThread then
+        pcall(function() task.cancel(self.DiagnosticThread) end)
+        self.DiagnosticThread = nil
+    end
     for _, mod in pairs(self.Modules) do
         if type(mod) == "table" then
-            if mod.destroy then pcall(mod.destroy) elseif mod.disable then pcall(mod.disable) end
+            if mod.destroy then
+                pcall(mod.destroy)
+            elseif mod.dismiss then
+                pcall(mod.dismiss)
+            elseif mod.stop then
+                pcall(mod.stop)
+            elseif mod.disable then
+                pcall(mod.disable)
+            end
         end
     end
+    self.Modules = {}
     if self.Overlay then
         pcall(function() self.Overlay:Destroy() end)
         self.Overlay = nil
+    end
+    if self.InputBeganConn then
+        pcall(function() self.InputBeganConn:Disconnect() end)
+        self.InputBeganConn = nil
+    end
+    if _G.DarlingDeltaUI and type(_G.DarlingDeltaUI.destroy) == "function" then
+        pcall(function() _G.DarlingDeltaUI.destroy() end)
+    end
+    if gethui then
+        local d = gethui():FindFirstChild("Delta")
+        if d then pcall(function() d:Destroy() end) end
+        local di = gethui():FindFirstChild("DeltaIcon")
+        if di then pcall(function() di:Destroy() end) end
+    end
+    if self.Window then
+        pcall(function() self.Window:Destroy() end)
+        self.Window = nil
     end
 end
 
@@ -299,6 +339,7 @@ local Window = WindUI:CreateWindow({
         Color = ColorSequence.new(Color3.fromRGB(0, 0, 0), Color3.fromRGB(0, 0, 0))
     }
 })
+DarlingHub.Window = Window
 
 -- Enforce pure black border on OpenButton
 local function enforceBlackOpenButtonBorder()
@@ -1026,12 +1067,13 @@ if Window.OnDestroy then
             end
         end)
         clearActiveMedia()
+        DarlingHub:UnloadAll()
     end)
 end
 
 -- Global Keyboard Shortcut Listener with 0.3s Debounce
 local lastToggleTick = 0
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+DarlingHub.InputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if UserInputService:GetFocusedTextBox() then return end
 
@@ -1282,8 +1324,10 @@ PlayersTab:Paragraph({
     Desc = "View player skins, monitor live health, blacklist from aimbot, or spectate",
 })
 
-task.spawn(function()
-    task.wait(0.2)
+local isPlayerListMounted = false
+local function mountPlayerListOnce()
+    if isPlayerListMounted then return end
+    isPlayerListMounted = true
     pcall(function()
         local PlayerList = DarlingHub:Require("modules/players/player_list.lua")
         if PlayerList and PlayerList.mount then
@@ -1295,6 +1339,30 @@ task.spawn(function()
             else
                 PlayerList.mount(PlayersTab)
             end
+        end
+    end)
+end
+
+task.spawn(function()
+    task.wait(0.2)
+    pcall(function()
+        local cf = (PlayersTab.UIElements and PlayersTab.UIElements.ContainerFrame)
+            or PlayersTab.ContainerFrame
+            or (PlayersTab.UIElements and PlayersTab.UIElements.Main)
+        if cf then
+            cf:GetPropertyChangedSignal("Visible"):Connect(function()
+                if cf.Visible then
+                    mountPlayerListOnce()
+                end
+            end)
+            if cf.Visible then
+                mountPlayerListOnce()
+            end
+        end
+        local btn = (PlayersTab.UIElements and (PlayersTab.UIElements.TabButton or PlayersTab.UIElements.Button))
+            or PlayersTab.TabButton or PlayersTab.Button
+        if btn and btn.Activated then
+            btn.Activated:Connect(mountPlayerListOnce)
         end
     end)
 end)
@@ -3530,7 +3598,7 @@ local function saveHubConfig()
         }
     }
     pcall(function()
-        local sMod = getSkinsMod()
+        local sMod = DarlingHub.Modules["modules/visuals/skins_system.lua"]
         if sMod then
             cfg.Skins.VFXEnabled = sMod.VFX and sMod.VFX.Enabled
             cfg.Skins.CharacterSkin = sMod.Character and sMod.Character.ActivePreset
@@ -3538,7 +3606,7 @@ local function saveHubConfig()
         end
     end)
     pcall(function()
-        local mMod = getMusicMod()
+        local mMod = DarlingHub.Modules["modules/utility/music_engine.lua"]
         if mMod and mMod.Favorites then
             cfg.MusicFavorites = mMod.Favorites
         end
@@ -3775,6 +3843,78 @@ SettingsTab:Button({
         })
     end
 })
+
+SettingsTab:Divider()
+
+local diagParagraph = SettingsTab:Paragraph({
+    Title = "Performance Diagnostics",
+    Desc = "Diagnostic mode disabled. Toggle on to view live resource usage.",
+})
+
+local function updateDiagnosticsView()
+    local totalConns = 0
+    local totalThreads = 0
+    local loadedCount = 0
+    local activeModules = {}
+
+    for path, mod in pairs(DarlingHub.Modules) do
+        loadedCount = loadedCount + 1
+        if type(mod) == "table" and type(mod.getDiagnostics) == "function" then
+            local ok, diag = pcall(mod.getDiagnostics)
+            if ok and type(diag) == "table" then
+                totalConns = totalConns + (diag.Connections or 0)
+                totalThreads = totalThreads + (diag.Threads or 0)
+                if diag.Active then
+                    table.insert(activeModules, diag.Name or path)
+                end
+            end
+        end
+    end
+
+    if DarlingHub.InputBeganConn then
+        totalConns = totalConns + 1
+    end
+
+    local activeStr = #activeModules > 0 and table.concat(activeModules, ", ") or "None"
+    local desc = string.format("Loaded Modules: %d\nActive Modules: %s\nTracked Connections: %d\nActive Background Threads: %d",
+        loadedCount, activeStr, totalConns, totalThreads)
+
+    pcall(function()
+        if diagParagraph and diagParagraph.SetDesc then
+            diagParagraph:SetDesc(desc)
+        end
+    end)
+end
+
+SettingsTab:Toggle({
+    Title = "Performance Diagnostics",
+    Desc = "Live tracking of active modules, background threads, and connections",
+    Value = false,
+    Callback = function(state)
+        if state then
+            if not DarlingHub.DiagnosticThread then
+                DarlingHub.DiagnosticThread = task.spawn(function()
+                    while true do
+                        updateDiagnosticsView()
+                        task.wait(1.5)
+                    end
+                end)
+            end
+        else
+            if DarlingHub.DiagnosticThread then
+                pcall(function() task.cancel(DarlingHub.DiagnosticThread) end)
+                DarlingHub.DiagnosticThread = nil
+            end
+            pcall(function()
+                if diagParagraph and diagParagraph.SetDesc then
+                    diagParagraph:SetDesc("Diagnostic mode disabled. Toggle on to view live resource usage.")
+                end
+            end)
+        end
+    end
+})
+
+SettingsTab:Divider()
 
 SettingsTab:Button({
     Title = "Unload Darling Hub",

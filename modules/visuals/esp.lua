@@ -253,7 +253,11 @@ local function updatePlayerESP(entry)
 
     -- 3. Name Label (Compact)
     if ESP.Names then
-        entry.NameLabel.Text = p.DisplayName
+        local dName = p.DisplayName
+        if entry.CachedName ~= dName then
+            entry.CachedName = dName
+            entry.NameLabel.Text = dName
+        end
         entry.NameLabel.TextColor3 = ESP.NameColor
         entry.NameLabel.Position = UDim2.fromOffset(rootPos.X - 80, boxY - 14)
         entry.NameLabel.Size = UDim2.fromOffset(160, 12)
@@ -388,10 +392,49 @@ function ESP.setTracerColor(color)
     end
 end
 
-Players.PlayerAdded:Connect(function(p)
+ESP.PlayerAddedConn = Players.PlayerAdded:Connect(function(p)
     if ESP.isAnyActive() then createPlayerEntry(p) end
 end)
 
-Players.PlayerRemoving:Connect(removePlayerEntry)
+ESP.PlayerRemovingConn = Players.PlayerRemoving:Connect(removePlayerEntry)
+
+function ESP.destroy()
+    ESP.Boxes = false
+    ESP.Names = false
+    ESP.Health = false
+    ESP.Distance = false
+    ESP.Tool = false
+    ESP.Chams = false
+    ESP.TracersAll = false
+    ESP.updateState()
+    for p, _ in pairs(ESP.Cache) do
+        removePlayerEntry(p)
+    end
+    ESP.Cache = {}
+    if ESP.PlayerAddedConn then
+        pcall(function() ESP.PlayerAddedConn:Disconnect() end)
+        ESP.PlayerAddedConn = nil
+    end
+    if ESP.PlayerRemovingConn then
+        pcall(function() ESP.PlayerRemovingConn:Disconnect() end)
+        ESP.PlayerRemovingConn = nil
+    end
+    if OverlayGui then
+        pcall(function() OverlayGui:Destroy() end)
+        OverlayGui = nil
+    end
+end
+
+function ESP.getDiagnostics()
+    local cacheCount = 0
+    for _ in pairs(ESP.Cache) do cacheCount = cacheCount + 1 end
+    return {
+        Name = "ESP",
+        Active = ESP.isAnyActive(),
+        Connections = (ESP.RenderConnection and 1 or 0) + (ESP.PlayerAddedConn and 1 or 0) + (ESP.PlayerRemovingConn and 1 or 0),
+        Threads = 0,
+        TrackedPlayers = cacheCount,
+    }
+end
 
 return ESP

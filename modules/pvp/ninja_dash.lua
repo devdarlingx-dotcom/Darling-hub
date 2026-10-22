@@ -291,4 +291,21 @@ function NinjaDash.setFloatingVisible(visible)
     end
 end
 
+function NinjaDash.destroy()
+    NinjaDash.disable()
+    if NinjaDash.Widget then
+        pcall(function() NinjaDash.Widget:Destroy() end)
+        NinjaDash.Widget = nil
+    end
+end
+
+function NinjaDash.getDiagnostics()
+    local connCount = NinjaDash.InputConnection and 1 or 0
+    return {
+        Connections = connCount,
+        Threads = 0,
+        Active = NinjaDash.Enabled,
+    }
+end
+
 return NinjaDash
