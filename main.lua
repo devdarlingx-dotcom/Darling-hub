@@ -96,6 +96,7 @@ local DarlingHub = {
     InputBeganConn = nil,
     FeatureStates = {},
     FeatureSetters = {},
+    UIElements = {},
     -- Shared settings: UI writes here, modules read here (no module load needed)
     Settings = {
         Aim = {
@@ -116,6 +117,8 @@ local DarlingHub = {
         Tracers = {
             Color = Color3.fromRGB(255, 255, 255),
             Thickness = 1.5,
+            Type = "3D Beam",
+            Origin = "Player",
         },
         Blacklist = {
             Melee = { Z = false, X = false, C = false },
@@ -127,6 +130,25 @@ local DarlingHub = {
 }
 SharedEnv.DarlingHub = DarlingHub
 _G.DarlingHub = DarlingHub
+
+local autoSaveConfig = true
+local autoLoadConfig = true
+local autoSaveDebounce = false
+local saveHubConfig = nil
+local loadHubConfig = nil
+
+local function triggerAutoSave()
+    if not autoSaveConfig then return end
+    if autoSaveDebounce then return end
+    autoSaveDebounce = true
+    task.delay(0.5, function()
+        autoSaveDebounce = false
+        if saveHubConfig then
+            pcall(saveHubConfig)
+        end
+    end)
+end
+DarlingHub.TriggerAutoSave = triggerAutoSave
 
 local function readLocalModule(relPath)
     if not (exIsFile and readfile) then return nil end
@@ -1177,7 +1199,13 @@ local function notifyModuleFail(name)
 end
 
 local function bindToggle(path, name)
+    DarlingHub.FeatureSetters[name] = function(state)
+        DarlingHub.FeatureStates[name] = state
+        return DarlingHub:Toggle(path, state)
+    end
     return function(state)
+        DarlingHub.FeatureStates[name] = state
+        triggerAutoSave()
         if DarlingHub:Toggle(path, state) == false then
             notifyModuleFail(name)
         end
@@ -1317,12 +1345,52 @@ AimbotTab:Dropdown({
 
 AimbotTab:Divider()
 
--- Tracers
-AimbotTab:Toggle({
+-- Tracers (Nameless & Project Spooky Engine)
+local tracersToggle = AimbotTab:Toggle({
     Title = "Show Tracers",
-    Desc = "Line from screen center to the current target",
+    Desc = "Hardware 3D Beam and 2D SnapLines linking your character directly to enemy",
     Value = false,
-    Callback = bindToggle("modules/combat/tracers.lua", "Tracers")
+    Callback = function(state)
+        DarlingHub.FeatureStates["Tracers"] = state
+        triggerAutoSave()
+        local mod = DarlingHub:Require("modules/combat/tracers.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
+    end
+})
+DarlingHub.UIElements["Tracers"] = tracersToggle
+DarlingHub.FeatureSetters["Tracers"] = function(state)
+    local mod = DarlingHub:Require("modules/combat/tracers.lua")
+    if mod then
+        if state then mod.enable() else mod.disable() end
+    end
+end
+
+AimbotTab:Dropdown({
+    Title = "Tracer Mode",
+    Values = { "3D Beam", "2D Line", "Both" },
+    Value = "3D Beam",
+    Callback = function(v)
+        AimSettings.Tracers.Type = v
+        DarlingHub.FeatureStates["TracerMode"] = v
+        triggerAutoSave()
+        local mod = DarlingHub:Require("modules/combat/tracers.lua")
+        if mod and mod.setType then mod.setType(v) end
+    end
+})
+
+AimbotTab:Dropdown({
+    Title = "Tracer Origin",
+    Values = { "Player", "Bottom", "Center" },
+    Value = "Player",
+    Callback = function(v)
+        AimSettings.Tracers.Origin = v
+        DarlingHub.FeatureStates["TracerOrigin"] = v
+        triggerAutoSave()
+        local mod = DarlingHub:Require("modules/combat/tracers.lua")
+        if mod and mod.setOrigin then mod.setOrigin(v) end
+    end
 })
 
 AimbotTab:Dropdown({
@@ -1330,32 +1398,61 @@ AimbotTab:Dropdown({
     Values = ColorNames,
     Value = "White",
     Callback = function(v)
-        if ColorMap[v] then AimSettings.Tracers.Color = ColorMap[v] end
+        if ColorMap[v] then
+            AimSettings.Tracers.Color = ColorMap[v]
+            DarlingHub.FeatureStates["TracerColor"] = v
+            triggerAutoSave()
+            local mod = DarlingHub:Require("modules/combat/tracers.lua")
+            if mod and mod.setColor then mod.setColor(ColorMap[v]) end
+        end
     end
 })
 
 AimbotTab:Divider()
 
 -- Target Tracker (Sticky Target Tracking)
-AimbotTab:Toggle({
+local trackerToggle = AimbotTab:Toggle({
     Title = "Target Tracker",
     Desc = "Sticky target tracking that glues you behind enemy player",
     Value = false,
     Callback = function(state)
         DarlingHub.FeatureStates["Tracker"] = state
+        triggerAutoSave()
         local mod = DarlingHub:Require("modules/combat/tracker.lua")
         if mod then
             if state then
-                mod.enable()
                 mod.startTracking()
+                if DarlingHub.FeatureStates["TrackerWidget"] then
+                    mod.setWidgetVisible(true)
+                end
             else
                 mod.stopTracking()
+                if not DarlingHub.FeatureStates["TrackerWidget"] then
+                    mod.setWidgetVisible(false)
+                end
             end
         end
     end
 })
+DarlingHub.UIElements["Tracker"] = trackerToggle
+DarlingHub.FeatureSetters["Tracker"] = function(state)
+    local mod = DarlingHub:Require("modules/combat/tracker.lua")
+    if mod then
+        if state then
+            mod.startTracking()
+            if DarlingHub.FeatureStates["TrackerWidget"] then
+                mod.setWidgetVisible(true)
+            end
+        else
+            mod.stopTracking()
+            if not DarlingHub.FeatureStates["TrackerWidget"] then
+                mod.setWidgetVisible(false)
+            end
+        end
+    end
+end
 
-AimbotTab:Slider({
+local trackerDistSlider = AimbotTab:Slider({
     Title = "Tracker Distance",
     Desc = "Distance behind target player in studs",
     Width = 200,
@@ -1363,23 +1460,37 @@ AimbotTab:Slider({
     Step = 0.5,
     Callback = function(v)
         DarlingHub.FeatureStates["TrackerDistance"] = v
+        triggerAutoSave()
         local mod = DarlingHub:Require("modules/combat/tracker.lua")
         if mod then mod.setDistance(v) end
     end
 })
+DarlingHub.UIElements["TrackerDistance"] = trackerDistSlider
+DarlingHub.FeatureSetters["TrackerDistance"] = function(v)
+    local mod = DarlingHub:Require("modules/combat/tracker.lua")
+    if mod then mod.setDistance(v) end
+end
 
-AimbotTab:Toggle({
+local trackerWidgetToggle = AimbotTab:Toggle({
     Title = "Tracker Widget",
     Desc = "Shows draggable quick-toggle TRACKER widget on screen",
     Value = false,
     Callback = function(state)
         DarlingHub.FeatureStates["TrackerWidget"] = state
+        triggerAutoSave()
         local mod = DarlingHub:Require("modules/combat/tracker.lua")
         if mod then
-            if state then mod.enable() else mod.setFloatingVisible(false) end
+            mod.setWidgetVisible(state)
         end
     end
 })
+DarlingHub.UIElements["TrackerWidget"] = trackerWidgetToggle
+DarlingHub.FeatureSetters["TrackerWidget"] = function(state)
+    local mod = DarlingHub:Require("modules/combat/tracker.lua")
+    if mod then
+        mod.setWidgetVisible(state)
+    end
+end
 
 -- ========================================================================
 -- 3. PLAYERS TAB
@@ -3316,17 +3427,20 @@ PersonalizationTab:Button({
         end
 
         processAndApplyMediaInput(textToUse)
+        triggerAutoSave()
     end
 })
 
 PersonalizationTab:Button({
     Title = "Remove Background",
     Callback = function()
+        lastEnteredBackgroundInput = ""
         clearActiveMedia()
         if imgA then imgA.Image = "" imgA.Visible = false end
         if imgB then imgB.Image = "" imgB.Visible = false end
         if tintOverlay then tintOverlay.Visible = false end
         hideBottomProgress()
+        triggerAutoSave()
         WindUI:Notify({
             Title = "Background Cleared",
             Content = "Background media has been removed.",
@@ -3350,6 +3464,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_d54d5cfd6e07"
         processAndApplyMediaInput("d_d54d5cfd6e07")
+        triggerAutoSave()
     end
 })
 
@@ -3359,6 +3474,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_ff0c0922e763"
         processAndApplyMediaInput("d_ff0c0922e763")
+        triggerAutoSave()
     end
 })
 
@@ -3368,6 +3484,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_f534b8513451"
         processAndApplyMediaInput("d_f534b8513451")
+        triggerAutoSave()
     end
 })
 
@@ -3377,6 +3494,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_e9c55db344fe"
         processAndApplyMediaInput("d_e9c55db344fe")
+        triggerAutoSave()
     end
 })
 
@@ -3386,6 +3504,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_f573215e217e"
         processAndApplyMediaInput("d_f573215e217e")
+        triggerAutoSave()
     end
 })
 
@@ -3395,6 +3514,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_8c246681eb77"
         processAndApplyMediaInput("d_8c246681eb77")
+        triggerAutoSave()
     end
 })
 
@@ -3404,6 +3524,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_e4a758d572cf"
         processAndApplyMediaInput("d_e4a758d572cf")
+        triggerAutoSave()
     end
 })
 
@@ -3413,6 +3534,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_8fc380896ec6"
         processAndApplyMediaInput("d_8fc380896ec6")
+        triggerAutoSave()
     end
 })
 
@@ -3422,6 +3544,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_bc0f17390bb1"
         processAndApplyMediaInput("d_bc0f17390bb1")
+        triggerAutoSave()
     end
 })
 
@@ -3431,6 +3554,7 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_cf8b2400db08"
         processAndApplyMediaInput("d_cf8b2400db08")
+        triggerAutoSave()
     end
 })
 
@@ -3448,12 +3572,14 @@ PersonalizationTab:Slider({
     Step = 5,
     Callback = function(val)
         currentBackgroundTransparency = val / 100
+        currentBgDimming = val
         if tintOverlay then
             tintOverlay.BackgroundTransparency = 1 - currentBackgroundTransparency
         end
         if Window.SetBackgroundImageTransparency then
             pcall(function() Window:SetBackgroundImageTransparency(currentBackgroundTransparency) end)
         end
+        triggerAutoSave()
     end
 })
 
@@ -3782,7 +3908,6 @@ end
 local CONFIG_FOLDER = "darling_hub"
 local PRIMARY_CONFIG = "darling_hub/config.json"
 local FALLBACK_CONFIG = "darling_config.json"
-local autoSaveConfig = true
 
 local function ensureConfigFolder()
     pcall(function()
@@ -3832,14 +3957,16 @@ local function deserializeTable(tbl)
     return out
 end
 
-local function saveHubConfig()
+saveHubConfig = function()
     ensureConfigFolder()
     local cfg = {
         Language = currentLanguage,
         Keybind = currentToggleKey and currentToggleKey.Name or "F",
         AutoSave = autoSaveConfig,
+        AutoLoad = autoLoadConfig,
         Theme = currentSelectedTheme or "Dark",
         BackgroundMedia = lastEnteredBackgroundInput or "",
+        BackgroundDimming = currentBgDimming or 25,
         BackgroundBlur = currentBgBlur or 0,
         BackgroundTransparency = currentBackgroundTransparency or 0.25,
         Settings = serializeTable(DarlingHub.Settings or {}),
@@ -3897,7 +4024,7 @@ local function saveHubConfig()
     return false, "writefile not supported on this executor"
 end
 
-local function loadHubConfig()
+loadHubConfig = function(silent)
     local readFunc = readfile or (syn and syn.readfile)
     if not readFunc then
         return false, "readfile not supported on this executor"
@@ -3934,7 +4061,16 @@ local function loadHubConfig()
             currentToggleKey = Enum.KeyCode[data.Keybind]
         end
         if data.AutoSave ~= nil then
-            autoSaveConfig = data.AutoSave
+            autoSaveConfig = (data.AutoSave == true)
+            if DarlingHub.UIElements["AutoSave"] and DarlingHub.UIElements["AutoSave"].Set then
+                pcall(function() DarlingHub.UIElements["AutoSave"]:Set(autoSaveConfig) end)
+            end
+        end
+        if data.AutoLoad ~= nil then
+            autoLoadConfig = (data.AutoLoad == true)
+            if DarlingHub.UIElements["AutoLoad"] and DarlingHub.UIElements["AutoLoad"].Set then
+                pcall(function() DarlingHub.UIElements["AutoLoad"]:Set(autoLoadConfig) end)
+            end
         end
         if data.Theme and WindUI then
             currentSelectedTheme = data.Theme
@@ -3944,10 +4080,20 @@ local function loadHubConfig()
             end
         end
         if data.BackgroundMedia and data.BackgroundMedia ~= "" then
-            lastEnteredBackgroundInput = data.BackgroundMedia
-            task.spawn(function()
-                processAndApplyMediaInput(data.BackgroundMedia)
-            end)
+            if data.BackgroundMedia ~= lastEnteredBackgroundInput then
+                lastEnteredBackgroundInput = data.BackgroundMedia
+                task.spawn(function()
+                    processAndApplyMediaInput(data.BackgroundMedia)
+                end)
+            end
+        end
+        if data.BackgroundDimming ~= nil and tintOverlay then
+            currentBgDimming = data.BackgroundDimming
+            currentBackgroundTransparency = (tonumber(data.BackgroundDimming) or 25) / 100
+            tintOverlay.BackgroundTransparency = 1 - currentBackgroundTransparency
+            if Window.SetBackgroundImageTransparency then
+                pcall(function() Window:SetBackgroundImageTransparency(currentBackgroundTransparency) end)
+            end
         end
         if data.Settings and type(data.Settings) == "table" then
             local restored = deserializeTable(data.Settings)
@@ -3969,6 +4115,9 @@ local function loadHubConfig()
                 DarlingHub.FeatureStates[k] = v
                 if DarlingHub.FeatureSetters and DarlingHub.FeatureSetters[k] then
                     pcall(DarlingHub.FeatureSetters[k], v)
+                end
+                if DarlingHub.UIElements and DarlingHub.UIElements[k] and DarlingHub.UIElements[k].Set then
+                    pcall(function() DarlingHub.UIElements[k]:Set(v) end)
                 end
             end
         end
@@ -4063,17 +4212,29 @@ SettingsTab:Button({
     end
 })
 
-SettingsTab:Toggle({
+local autoSaveToggle = SettingsTab:Toggle({
     Title = "Auto-Save Configuration",
     Desc = "Automatically saves your configuration on changes",
     Value = true,
     Callback = function(state)
         autoSaveConfig = state
-        if state then
+        if state and saveHubConfig then
             saveHubConfig()
         end
     end
 })
+DarlingHub.UIElements["AutoSave"] = autoSaveToggle
+
+local autoLoadToggle = SettingsTab:Toggle({
+    Title = "Auto-Load on Startup",
+    Desc = "Automatically restores saved configuration when Darling Hub starts",
+    Value = true,
+    Callback = function(state)
+        autoLoadConfig = state
+        triggerAutoSave()
+    end
+})
+DarlingHub.UIElements["AutoLoad"] = autoLoadToggle
 
 SettingsTab:Divider()
 
@@ -4173,20 +4334,23 @@ WindUI:Notify({
 
 Window:SelectTab(1)
 
--- Auto-load saved configuration on startup if available
+-- Auto-load saved configuration on startup if enabled
 task.spawn(function()
-    task.wait(0.2)
-    loadHubConfig()
-end)
-
--- Apply saved background if available
-task.spawn(function()
-    task.wait(0.5)
-    if lastEnteredBackgroundInput and lastEnteredBackgroundInput ~= "" and lastEnteredBackgroundInput ~= "d_d54d5cfd6e07" then
-        pcall(function()
-            processAndApplyMediaInput(lastEnteredBackgroundInput)
-        end)
-    end
+    task.wait(0.3)
+    pcall(function()
+        if autoLoadConfig and loadHubConfig then
+            local ok, data = loadHubConfig(true)
+            if not ok then
+                if lastEnteredBackgroundInput and lastEnteredBackgroundInput ~= "" and lastEnteredBackgroundInput ~= "d_d54d5cfd6e07" then
+                    processAndApplyMediaInput(lastEnteredBackgroundInput)
+                end
+            end
+        else
+            if lastEnteredBackgroundInput and lastEnteredBackgroundInput ~= "" and lastEnteredBackgroundInput ~= "d_d54d5cfd6e07" then
+                processAndApplyMediaInput(lastEnteredBackgroundInput)
+            end
+        end
+    end)
 end)
 
 local Players = game:GetService("Players")

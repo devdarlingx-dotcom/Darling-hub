@@ -118,36 +118,76 @@ function Tracker.toggleTracking()
     return Tracker.Active
 end
 
-function Tracker.enable()
-    Tracker.Enabled = true
-    local FW = getFloatingWidget()
-    if FW and not Tracker.Widget then
-        Tracker.Widget = FW.create({
-            Id = "TrackerWidget",
-            Label = "TRACKER",
-            Type = "Toggle",
-            Position = UDim2.new(0.02, 0, 0.42, 0),
-            AccentColor = Color3.fromRGB(255, 75, 145),
-            Callback = function(state)
-                if state then
-                    Tracker.startTracking()
-                else
-                    Tracker.stopTracking()
+function Tracker.destroyWidget()
+    if Tracker.Widget then
+        pcall(function()
+            if Tracker.Widget.Destroy then
+                Tracker.Widget:Destroy()
+            elseif Tracker.Widget.Pill and Tracker.Widget.Pill.Parent then
+                Tracker.Widget.Pill:Destroy()
+            end
+        end)
+        Tracker.Widget = nil
+    end
+    -- Also clean up any lingering widget in shared ScreenGui
+    pcall(function()
+        local env = (getgenv and getgenv()) or _G
+        local hub = env.DarlingHub or _G.DarlingHub
+        local overlay = (hub and hub.GetOverlay and hub:GetOverlay())
+        if overlay then
+            local leftover = overlay:FindFirstChild("TrackerWidget")
+            if leftover then leftover:Destroy() end
+        end
+        local CoreGui = game:GetService("CoreGui")
+        local sg = CoreGui:FindFirstChild("DarlingHub_FloatingWidgets")
+        if sg then
+            local w = sg:FindFirstChild("TrackerWidget")
+            if w then w:Destroy() end
+        end
+    end)
+end
+
+function Tracker.setWidgetVisible(visible)
+    if not visible then
+        Tracker.destroyWidget()
+    else
+        if not Tracker.Widget then
+            local FW = getFloatingWidget()
+            if FW then
+                Tracker.Widget = FW.create({
+                    Id = "TrackerWidget",
+                    Label = "TRACKER",
+                    Type = "Toggle",
+                    Position = UDim2.new(0.02, 0, 0.42, 0),
+                    AccentColor = Color3.fromRGB(255, 75, 145),
+                    Callback = function(state)
+                        if state then
+                            Tracker.startTracking()
+                        else
+                            Tracker.stopTracking()
+                        end
+                    end
+                })
+                if Tracker.Active and Tracker.Widget then
+                    Tracker.Widget:Set(true, true)
                 end
             end
-        })
-    elseif Tracker.Widget then
-        Tracker.Widget:SetVisible(true)
+        else
+            Tracker.Widget:SetVisible(true)
+        end
     end
+end
+
+function Tracker.enable()
+    Tracker.Enabled = true
     return true
 end
 
 function Tracker.disable()
     Tracker.Enabled = false
     Tracker.stopTracking()
-    if Tracker.Widget then
-        Tracker.Widget:SetVisible(false)
-    end
+    Tracker.destroyWidget()
+    return true
 end
 
 function Tracker.setDistance(dist)
@@ -155,17 +195,12 @@ function Tracker.setDistance(dist)
 end
 
 function Tracker.setFloatingVisible(visible)
-    if Tracker.Widget then
-        Tracker.Widget:SetVisible(visible)
-    end
+    Tracker.setWidgetVisible(visible)
 end
 
 function Tracker.destroy()
     Tracker.disable()
-    if Tracker.Widget and Tracker.Widget.Destroy then
-        Tracker.Widget:Destroy()
-        Tracker.Widget = nil
-    end
+    Tracker.destroyWidget()
 end
 
 function Tracker.getDiagnostics()

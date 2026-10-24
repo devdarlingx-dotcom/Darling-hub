@@ -1,9 +1,13 @@
--- tracers
+-- ========================================================================
+-- Darling Hub - Combat Tracers
+-- Hardware 3D Beam + 2D Body-to-Body SnapLines (Nameless & Spooky Engine)
+-- ========================================================================
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
 
 local Tracers = {}
 local Core = nil
@@ -47,11 +51,67 @@ end
 local isEnabled = false
 local renderConnection = nil
 
--- ScreenGui Element References
+-- Configuration State
+local tracerSettings = {
+    Type = "3D Beam", -- "3D Beam", "2D Line", "Both"
+    Origin = "Player", -- "Player", "Bottom", "Center"
+    Color = Color3.fromRGB(255, 255, 255),
+    Thickness = 1.5,
+    BeamWidth = 0.25,
+}
+
+-- 3D Hardware Beam References (Terrain-anchored like Project Spooky & Nameless)
+local tracerBeam = nil
+local tracerAtt0 = nil
+local tracerAtt1 = nil
+
+local function getOrCreateTracerBeam()
+    if tracerBeam and tracerBeam.Parent and tracerAtt0 and tracerAtt0.Parent and tracerAtt1 and tracerAtt1.Parent then
+        return tracerBeam
+    end
+    pcall(function()
+        local parentObj = Workspace:FindFirstChildOfClass("Terrain") or Workspace
+        if not tracerAtt0 or not tracerAtt0.Parent then
+            tracerAtt0 = Instance.new("Attachment")
+            tracerAtt0.Name = "DarlingTracer_Att0"
+            tracerAtt0.Parent = parentObj
+        end
+        if not tracerAtt1 or not tracerAtt1.Parent then
+            tracerAtt1 = Instance.new("Attachment")
+            tracerAtt1.Name = "DarlingTracer_Att1"
+            tracerAtt1.Parent = parentObj
+        end
+        if not tracerBeam or not tracerBeam.Parent then
+            tracerBeam = Instance.new("Beam")
+            tracerBeam.Name = "DarlingTracer_Beam"
+            tracerBeam.Attachment0 = tracerAtt0
+            tracerBeam.Attachment1 = tracerAtt1
+            tracerBeam.FaceCamera = true
+            tracerBeam.Width0 = tracerSettings.BeamWidth or 0.25
+            tracerBeam.Width1 = tracerSettings.BeamWidth or 0.25
+            tracerBeam.Segments = 1
+            tracerBeam.Color = ColorSequence.new(tracerSettings.Color or Color3.fromRGB(255, 255, 255))
+            tracerBeam.Transparency = NumberSequence.new(0.05)
+            tracerBeam.Enabled = false
+            tracerBeam.Parent = parentObj
+        end
+    end)
+    return tracerBeam
+end
+
+local function destroyTracerBeam()
+    pcall(function()
+        if tracerBeam then tracerBeam:Destroy(); tracerBeam = nil end
+        if tracerAtt0 then tracerAtt0:Destroy(); tracerAtt0 = nil end
+        if tracerAtt1 then tracerAtt1:Destroy(); tracerAtt1 = nil end
+    end)
+end
+
+-- 2D ScreenGui Elements
 local overlayGui = nil
 local guiLine = nil
 
--- Drawing API Reference
+-- 2D Drawing API
 local drawingLine = nil
 local hasDrawing = (typeof(Drawing) == "table" and typeof(Drawing.new) == "function")
 
@@ -77,7 +137,7 @@ local function getOverlayGui()
     local parented = false
     if gethui then parented = pcall(function() gui.Parent = gethui() end) end
     if not parented then parented = pcall(function() gui.Parent = CoreGui end) end
-    if not parented then gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+    if not parented and LocalPlayer then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
     overlayGui = gui
     return overlayGui
 end
@@ -91,7 +151,7 @@ local function ensureGuiLine()
     line.Name = "TracerLine"
     line.AnchorPoint = Vector2.new(0.5, 0.5)
     line.BorderSizePixel = 0
-    line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    line.BackgroundColor3 = tracerSettings.Color or Color3.fromRGB(255, 255, 255)
     line.Visible = false
     line.Parent = overlay
 
@@ -104,9 +164,9 @@ local function ensureDrawingLine()
     if drawingLine then return drawingLine end
     local ok, l = pcall(function()
         local line = Drawing.new("Line")
-        line.Thickness = 1.5
+        line.Thickness = tracerSettings.Thickness or 1.5
         line.Transparency = 1
-        line.Color = Color3.fromRGB(255, 255, 255)
+        line.Color = tracerSettings.Color or Color3.fromRGB(255, 255, 255)
         line.Visible = false
         return line
     end)
@@ -117,81 +177,170 @@ local function ensureDrawingLine()
     return nil
 end
 
+-- Helper: resolve exact torso center position of any character model
+local function resolveTorsoPosition(part)
+    if not part or not part.Parent then return nil end
+    local model = part.Parent
+    if model:IsA("Accessory") and model.Parent then
+        model = model.Parent
+    end
+    local torso = model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("UpperTorso")
+        or model:FindFirstChild("Torso")
+        or model:FindFirstChild("LowerTorso")
+        or part
+    return torso.Position
+end
+
+-- Helper: resolve local player torso center position
+local function getMyTorsoPosition()
+    local char = LocalPlayer and LocalPlayer.Character
+    if not char then return nil end
+    local torso = char:FindFirstChild("HumanoidRootPart")
+        or char:FindFirstChild("UpperTorso")
+        or char:FindFirstChild("Torso")
+    return torso and torso.Position
+end
+
+local function hideAllTracers()
+    if tracerBeam then tracerBeam.Enabled = false end
+    if drawingLine then drawingLine.Visible = false end
+    if guiLine then guiLine.Visible = false end
+end
+
 local function onRender()
-    if not isEnabled then return end
-    local core = getCore()
-    local settings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers)
-        or (core and core.Tracers)
-        or { Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5 }
-
-    local camera = Workspace.CurrentCamera
-    if not camera then return end
-
-    -- Target resolution: torso-accurate live position of active target
-    local function resolveTorso(part)
-        if not part or not part.Parent then return nil end
-        local model = part.Parent
-        if model:IsA("Accessory") and model.Parent then
-            model = model.Parent
-        end
-        local torso = model:FindFirstChild("HumanoidRootPart")
-            or model:FindFirstChild("UpperTorso")
-            or model:FindFirstChild("Torso")
-            or model:FindFirstChild("LowerTorso")
-            or part
-        return torso.Position
+    if not isEnabled then
+        hideAllTracers()
+        return
     end
 
+    local core = getCore()
+    local globalSettings = (_G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers)
+        or (core and core.Tracers)
+    if globalSettings then
+        if globalSettings.Color then tracerSettings.Color = globalSettings.Color end
+        if globalSettings.Thickness then tracerSettings.Thickness = globalSettings.Thickness end
+        if globalSettings.Type then tracerSettings.Type = globalSettings.Type end
+        if globalSettings.Origin then tracerSettings.Origin = globalSettings.Origin end
+    end
+
+    local camera = Workspace.CurrentCamera
+    if not camera then
+        hideAllTracers()
+        return
+    end
+
+    local myTorsoPos = getMyTorsoPosition()
     local targetPos = nil
+
     if core then
         local activePart = core.CurrentTargetPart
         if activePart and activePart.Parent then
-            targetPos = resolveTorso(activePart)
+            targetPos = resolveTorsoPosition(activePart)
         elseif core.resolveAnyTarget then
             local part = core.resolveAnyTarget()
             if part and part.Parent then
-                targetPos = resolveTorso(part)
+                targetPos = resolveTorsoPosition(part)
             end
         end
     end
 
     if not targetPos then
-        if guiLine then guiLine.Visible = false end
-        if drawingLine then drawingLine.Visible = false end
+        hideAllTracers()
         return
     end
 
-    local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
-    if not onScreen or screenPos.Z <= 0 then
-        if guiLine then guiLine.Visible = false end
+    local color = tracerSettings.Color or Color3.fromRGB(255, 255, 255)
+    local thickness = tracerSettings.Thickness or 1.5
+    local currentType = tracerSettings.Type or "3D Beam"
+
+    -- ====================================================================
+    -- 1. HARDWARE 3D BEAM TRACER (Physical world-space body-to-body link)
+    -- ====================================================================
+    local beamActive = false
+    if currentType == "3D Beam" or currentType == "Both" then
+        if myTorsoPos and targetPos then
+            local beam = getOrCreateTracerBeam()
+            if beam and tracerAtt0 and tracerAtt1 then
+                pcall(function()
+                    tracerAtt0.WorldPosition = myTorsoPos
+                    tracerAtt1.WorldPosition = targetPos
+                    beam.Color = ColorSequence.new(color)
+                    beam.Width0 = math.clamp(thickness * 0.15, 0.1, 1.0)
+                    beam.Width1 = math.clamp(thickness * 0.15, 0.1, 1.0)
+                    beam.Enabled = true
+                    beamActive = true
+                end)
+            end
+        end
+    end
+    if not beamActive and tracerBeam then
+        tracerBeam.Enabled = false
+    end
+
+    -- ====================================================================
+    -- 2. 2D SCREEN SNAPLINE (Drawing API or ScreenGui fallback)
+    -- ====================================================================
+    if currentType == "2D Line" or currentType == "Both" then
+        local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
+        local vp = camera.ViewportSize
+
+        if not onScreen or screenPos.Z <= 0 then
+            if drawingLine then drawingLine.Visible = false end
+            if guiLine then guiLine.Visible = false end
+            return
+        end
+
+        local toPos = Vector2.new(screenPos.X, screenPos.Y)
+        local fromPos = nil
+
+        local originMode = tracerSettings.Origin or "Player"
+        if originMode == "Player" then
+            if myTorsoPos then
+                local myScreenPos, myOnScreen = camera:WorldToViewportPoint(myTorsoPos)
+                if myOnScreen and myScreenPos.Z > 0 then
+                    fromPos = Vector2.new(myScreenPos.X, myScreenPos.Y)
+                else
+                    fromPos = Vector2.new(vp.X * 0.5, vp.Y)
+                end
+            else
+                fromPos = Vector2.new(vp.X * 0.5, vp.Y)
+            end
+        elseif originMode == "Bottom" then
+            fromPos = Vector2.new(vp.X * 0.5, vp.Y)
+        else
+            fromPos = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
+        end
+
+        if hasDrawing then
+            local line = ensureDrawingLine()
+            if line then
+                line.From = fromPos
+                line.To = toPos
+                line.Color = color
+                line.Thickness = thickness
+                line.Visible = true
+            end
+            if guiLine then guiLine.Visible = false end
+        else
+            local line = ensureGuiLine()
+            if line then
+                local delta = toPos - fromPos
+                local dist = delta.Magnitude
+                local angle = math.atan2(delta.Y, delta.X)
+
+                line.AnchorPoint = Vector2.new(0.5, 0.5)
+                line.Size = UDim2.fromOffset(dist, thickness)
+                line.Position = UDim2.fromOffset((fromPos.X + toPos.X) * 0.5, (fromPos.Y + toPos.Y) * 0.5)
+                line.Rotation = math.deg(angle)
+                line.BackgroundColor3 = color
+                line.Visible = true
+            end
+            if drawingLine then drawingLine.Visible = false end
+        end
+    else
         if drawingLine then drawingLine.Visible = false end
-        return
-    end
-
-    local vp = camera.ViewportSize
-    local fromPos = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
-    local toPos = Vector2.new(screenPos.X, screenPos.Y)
-    local color = settings.Color or Color3.fromRGB(255, 255, 255)
-    local thickness = settings.Thickness or 1.5
-
-    -- ScreenGui Rotated Line (Guaranteed visible and centered on mobile and PC)
-    local line = ensureGuiLine()
-    if line then
-        local delta = toPos - fromPos
-        local distance = delta.Magnitude
-        local angle = math.atan2(delta.Y, delta.X)
-
-        line.AnchorPoint = Vector2.new(0.5, 0.5)
-        line.Size = UDim2.fromOffset(distance, thickness)
-        line.Position = UDim2.fromOffset((fromPos.X + toPos.X) * 0.5, (fromPos.Y + toPos.Y) * 0.5)
-        line.Rotation = math.deg(angle)
-        line.BackgroundColor3 = color
-        line.Visible = true
-    end
-
-    -- Keep drawing line hidden to avoid duplicate overlays
-    if drawingLine then
-        drawingLine.Visible = false
+        if guiLine then guiLine.Visible = false end
     end
 end
 
@@ -200,7 +349,12 @@ function Tracers.enable()
     local core = getCore()
     if core and core.Tracers then core.Tracers.Visible = true end
 
-    ensureGuiLine()
+    getOrCreateTracerBeam()
+    if hasDrawing then
+        ensureDrawingLine()
+    else
+        ensureGuiLine()
+    end
 
     if not renderConnection then
         renderConnection = RunService.RenderStepped:Connect(onRender)
@@ -218,12 +372,7 @@ function Tracers.disable()
         renderConnection = nil
     end
 
-    if guiLine then
-        guiLine.Visible = false
-    end
-    if drawingLine then
-        drawingLine.Visible = false
-    end
+    hideAllTracers()
 end
 
 function Tracers.setVisible(state)
@@ -231,24 +380,64 @@ function Tracers.setVisible(state)
 end
 
 function Tracers.setColor(color)
-    local core = getCore()
-    if core and typeof(color) == "Color3" then core.Tracers.Color = color end
-    if _G.DarlingHub and _G.DarlingHub.Settings and typeof(color) == "Color3" then
-        _G.DarlingHub.Settings.Tracers.Color = color
+    if typeof(color) == "Color3" then
+        tracerSettings.Color = color
+        local core = getCore()
+        if core and core.Tracers then core.Tracers.Color = color end
+        if _G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers then
+            _G.DarlingHub.Settings.Tracers.Color = color
+        end
+        if tracerBeam then
+            tracerBeam.Color = ColorSequence.new(color)
+        end
+        if drawingLine then
+            drawingLine.Color = color
+        end
+        if guiLine then
+            guiLine.BackgroundColor3 = color
+        end
     end
 end
 
 function Tracers.setThickness(thickness)
     local t = tonumber(thickness) or 1.5
+    tracerSettings.Thickness = t
+    tracerSettings.BeamWidth = math.clamp(t * 0.15, 0.1, 1.0)
     local core = getCore()
-    if core then core.Tracers.Thickness = t end
-    if _G.DarlingHub and _G.DarlingHub.Settings then
+    if core and core.Tracers then core.Tracers.Thickness = t end
+    if _G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers then
         _G.DarlingHub.Settings.Tracers.Thickness = t
+    end
+    if tracerBeam then
+        tracerBeam.Width0 = tracerSettings.BeamWidth
+        tracerBeam.Width1 = tracerSettings.BeamWidth
+    end
+    if drawingLine then
+        drawingLine.Thickness = t
+    end
+end
+
+function Tracers.setType(t)
+    if t == "3D Beam" or t == "2D Line" or t == "Both" then
+        tracerSettings.Type = t
+        if _G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers then
+            _G.DarlingHub.Settings.Tracers.Type = t
+        end
+    end
+end
+
+function Tracers.setOrigin(origin)
+    if origin == "Player" or origin == "Bottom" or origin == "Center" then
+        tracerSettings.Origin = origin
+        if _G.DarlingHub and _G.DarlingHub.Settings and _G.DarlingHub.Settings.Tracers then
+            _G.DarlingHub.Settings.Tracers.Origin = origin
+        end
     end
 end
 
 function Tracers.destroy()
     Tracers.disable()
+    destroyTracerBeam()
     if guiLine then
         pcall(function() guiLine:Destroy() end)
         guiLine = nil
@@ -259,4 +448,5 @@ function Tracers.destroy()
     end
 end
 
+_G.DarlingTracers = Tracers
 return Tracers
