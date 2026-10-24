@@ -1,7 +1,6 @@
 --[[
-    Darling Hub - Codex Admin Animation (Celestial Sovereign V2.2)
-    High-fidelity cinematic admin animation created by Codex.
-    Modular wrapper for Darling Hub with play, stop, dismiss, destroy lifecycle.
+    Darling Hub - Admin Animation
+    Cinematic admin cutscene with custom lighting and camera angles.
 ]]--
 
 local CodexAdmin = {

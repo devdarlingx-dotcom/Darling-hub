@@ -382,14 +382,14 @@ function PlayerList.createPlayerCard(player, parentFrame)
     -- Blacklist Button (Ghost WindUI style)
     local blBtn = Instance.new("TextButton")
     blBtn.Name = "BlacklistBtn"
-    blBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    blBtn.Size = UDim2.new(0.33, -4, 1, 0)
     blBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     blBtn.BackgroundTransparency = 0.94
     blBtn.BorderSizePixel = 0
     blBtn.Text = "Blacklist"
     blBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
     blBtn.Font = Enum.Font.GothamMedium
-    blBtn.TextSize = 11
+    blBtn.TextSize = 10
     blBtn.AutoButtonColor = true
     blBtn.Parent = btnRow
 
@@ -411,14 +411,14 @@ function PlayerList.createPlayerCard(player, parentFrame)
     -- Spectate Button (Ghost WindUI style)
     local specBtn = Instance.new("TextButton")
     specBtn.Name = "SpectateBtn"
-    specBtn.Size = UDim2.new(0.5, -3, 1, 0)
+    specBtn.Size = UDim2.new(0.33, -4, 1, 0)
     specBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     specBtn.BackgroundTransparency = 0.94
     specBtn.BorderSizePixel = 0
     specBtn.Text = "Spectate"
     specBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
     specBtn.Font = Enum.Font.GothamMedium
-    specBtn.TextSize = 11
+    specBtn.TextSize = 10
     specBtn.AutoButtonColor = true
     specBtn.Parent = btnRow
 
@@ -435,6 +435,48 @@ function PlayerList.createPlayerCard(player, parentFrame)
 
     specBtn.MouseButton1Click:Connect(function()
         PlayerList.toggleSpectate(player)
+    end)
+
+    -- Clone Avatar Button
+    local cloneBtn = Instance.new("TextButton")
+    cloneBtn.Name = "CloneBtn"
+    cloneBtn.Size = UDim2.new(0.34, -4, 1, 0)
+    cloneBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    cloneBtn.BackgroundTransparency = 0.94
+    cloneBtn.BorderSizePixel = 0
+    cloneBtn.Text = "Clone"
+    cloneBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
+    cloneBtn.Font = Enum.Font.GothamMedium
+    cloneBtn.TextSize = 10
+    cloneBtn.AutoButtonColor = true
+    cloneBtn.Parent = btnRow
+
+    local cloneCorner = Instance.new("UICorner")
+    cloneCorner.CornerRadius = UDim.new(0, 6)
+    cloneCorner.Parent = cloneBtn
+
+    local cloneStroke = Instance.new("UIStroke")
+    cloneStroke.Color = Color3.fromRGB(255, 255, 255)
+    cloneStroke.Transparency = 0.90
+    cloneStroke.Thickness = 1
+    cloneStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    cloneStroke.Parent = cloneBtn
+
+    cloneBtn.MouseButton1Click:Connect(function()
+        local env = (getgenv and getgenv()) or _G
+        local hub = env.DarlingHub or _G.DarlingHub
+        local ac = hub and hub.Require and hub:Require("modules/visuals/avatar_changer.lua")
+        if ac and ac.apply then
+            local ok, msg = ac.apply(player.UserId)
+            if WindUI and WindUI.Notify then
+                WindUI:Notify({
+                    Title = "Avatar Cloner",
+                    Content = ok and ("Cloned @" .. player.Name) or tostring(msg),
+                    Duration = 3,
+                    Icon = "user"
+                })
+            end
+        end
     end)
 
     -- Live Health Update Function (Reworked Color Palette)

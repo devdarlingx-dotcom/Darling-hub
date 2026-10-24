@@ -25,11 +25,9 @@ end
 local ThroneShaders = {
     Enabled = false,
     OriginalLighting = nil,
-    SavedSky = nil,
     Bloom = nil,
     ColorCorrection = nil,
     Atmosphere = nil,
-    ActiveSky = nil,
     FlashGui = nil,
     FlashFrame = nil,
     CreatedEffects = {},
@@ -67,17 +65,6 @@ local ATMOSPHERE_CONFIG = {
     Decay = Color3.fromRGB(55, 12, 115),
     Glare = 0.4,
     Haze = 0.7,
-}
-
-local SKY_CONFIG = {
-    Bk = "rbxassetid://5260808177",
-    Dn = "rbxassetid://5260653793",
-    Ft = "rbxassetid://5260817288",
-    Lf = "rbxassetid://5260800833",
-    Rt = "rbxassetid://5260800833",
-    Up = "rbxassetid://5084576400",
-    StarCount = 5000,
-    CelestialBodiesShown = true,
 }
 
 local function saveOriginalLighting()
@@ -148,28 +135,7 @@ local function createOrGetEffects()
         table.insert(ThroneShaders.CreatedEffects, atmo)
     end
 
-    -- Cosmic Skybox
-    local existingSky = Lighting:FindFirstChildOfClass("Sky")
-    if existingSky and existingSky.Name ~= "Darling_Throne_Sky" then
-        ThroneShaders.SavedSky = existingSky
-        pcall(function() existingSky.Parent = nil end)
-    end
 
-    if not ThroneShaders.ActiveSky or not ThroneShaders.ActiveSky.Parent then
-        local sky = Lighting:FindFirstChild("Darling_Throne_Sky") or Instance.new("Sky")
-        sky.Name = "Darling_Throne_Sky"
-        sky.SkyboxBk = SKY_CONFIG.Bk
-        sky.SkyboxDn = SKY_CONFIG.Dn
-        sky.SkyboxFt = SKY_CONFIG.Ft
-        sky.SkyboxLf = SKY_CONFIG.Lf
-        sky.SkyboxRt = SKY_CONFIG.Rt
-        sky.SkyboxUp = SKY_CONFIG.Up
-        sky.StarCount = SKY_CONFIG.StarCount
-        sky.CelestialBodiesShown = SKY_CONFIG.CelestialBodiesShown
-        sky.Parent = Lighting
-        ThroneShaders.ActiveSky = sky
-        table.insert(ThroneShaders.CreatedEffects, sky)
-    end
 end
 
 function ThroneShaders.enable(smooth, duration)
@@ -225,7 +191,6 @@ function ThroneShaders.disable(smooth, duration)
                     ThroneShaders.Bloom = nil
                     ThroneShaders.ColorCorrection = nil
                     ThroneShaders.Atmosphere = nil
-                    ThroneShaders.ActiveSky = nil
                 end
             end)
         else
@@ -245,14 +210,7 @@ function ThroneShaders.disable(smooth, duration)
             ThroneShaders.Bloom = nil
             ThroneShaders.ColorCorrection = nil
             ThroneShaders.Atmosphere = nil
-            ThroneShaders.ActiveSky = nil
         end
-    end
-
-    -- Restore saved skybox
-    if ThroneShaders.SavedSky then
-        pcall(function() ThroneShaders.SavedSky.Parent = Lighting end)
-        ThroneShaders.SavedSky = nil
     end
 
     ThroneShaders.OriginalLighting = nil
@@ -325,8 +283,6 @@ function ThroneShaders.destroy()
     ThroneShaders.Bloom = nil
     ThroneShaders.ColorCorrection = nil
     ThroneShaders.Atmosphere = nil
-    ThroneShaders.ActiveSky = nil
-    ThroneShaders.SavedSky = nil
     ThroneShaders.OriginalLighting = nil
     ThroneShaders.Enabled = false
 end

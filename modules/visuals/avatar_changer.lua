@@ -1,8 +1,5 @@
 -- ========================================================================
--- Darling Hub - Avatar Changer Engine
--- High-fidelity avatar replication engine ported from Noctra.
--- Features: Full body overlay pairing (R6 <-> R15 agnostic), snapshot capture &
--- restore, giant transformation watchdog, true proportion scaling, silent protection.
+-- Darling Hub - Avatar Engine
 -- ========================================================================
 
 local Players = game:GetService("Players")

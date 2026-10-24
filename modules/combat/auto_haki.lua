@@ -2,7 +2,7 @@
     Darling Hub - Auto Haki / Auto Buso Module
     Blox Fruits Buso Haki (Armament Haki / Enhancement) Automation.
 
-    Logic (cokeboys pattern):
+    Logic:
     - Checks if LocalPlayer owns Buso Haki (Data.Buso or HasBuso attribute).
     - Detects if Buso is currently active via character attribute "HasBuso",
       character child "HasBuso", or Buso body parts.

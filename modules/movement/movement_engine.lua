@@ -286,7 +286,7 @@ function MovementEngine.setInfiniteJump(state)
 end
 
 -- ========================================================================
--- 6. SUPER JUMP (SACRED AHK ENGINE)
+-- 6. SUPER JUMP
 -- ========================================================================
 function MovementEngine.doSuperJump()
     local char = LocalPlayer.Character
@@ -295,19 +295,27 @@ function MovementEngine.doSuperJump()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum or hum.Health <= 0 then return end
 
-    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
     local power = tonumber(MovementEngine.SuperJumpPower) or 500
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+
+    -- Clean up any lingering jump force
+    local existing = hrp:FindFirstChild("DarlingSuperJump")
+    if existing then pcall(function() existing:Destroy() end) end
+
+    -- Sustained upward velocity force so Blox Fruits physics clamps don't nullify jump
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "DarlingSuperJump"
+    bv.MaxForce = Vector3.new(0, 1e7, 0)
+    bv.Velocity = Vector3.new(0, power, 0)
+    bv.Parent = hrp
+
     local vel = hrp.AssemblyLinearVelocity or hrp.Velocity or Vector3.zero
     hrp.AssemblyLinearVelocity = Vector3.new(vel.X, power, vel.Z)
     pcall(function() hrp.Velocity = Vector3.new(vel.X, power, vel.Z) end)
 
-    task.defer(function()
-        if hrp and hrp.Parent then
-            local v = hrp.AssemblyLinearVelocity or hrp.Velocity or Vector3.zero
-            if v.Y < (power * 0.5) then
-                hrp.AssemblyLinearVelocity = Vector3.new(v.X, power, v.Z)
-                pcall(function() hrp.Velocity = Vector3.new(v.X, power, v.Z) end)
-            end
+    task.delay(0.2, function()
+        if bv and bv.Parent then
+            pcall(function() bv:Destroy() end)
         end
     end)
 end
@@ -339,7 +347,7 @@ function MovementEngine.setSuperJump(state, power)
 end
 
 -- ========================================================================
--- 7. WALK ON WATER (JESUS ENGINE)
+-- 7. WALK ON WATER
 -- ========================================================================
 local function getWaterPlatform()
     if MovementEngine.WaterPlatform and MovementEngine.WaterPlatform.Parent then

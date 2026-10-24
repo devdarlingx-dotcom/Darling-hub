@@ -868,43 +868,29 @@ function DarlingSkins.setAuraEnabled(state)
     end
 end
 
+local function getAvatarEngine()
+    local env = (getgenv and getgenv()) or _G
+    local hub = env.DarlingHub or _G.DarlingHub
+    if hub and hub.Require then
+        local ok, mod = pcall(function() return hub:Require("modules/visuals/avatar_changer.lua") end)
+        if ok and mod then return mod end
+    end
+    for _, p in ipairs({ "modules/visuals/avatar_changer.lua", "darling-hub/modules/visuals/avatar_changer.lua" }) do
+        if isfile and isfile(p) then
+            local ok, mod = pcall(function() return loadstring(readfile(p))() end)
+            if ok and mod then return mod end
+        end
+    end
+    return nil
+end
+
 function DarlingSkins.cloneCharacterAppearance(targetChar)
     if not targetChar then return false, "Target character not found" end
-    local myChar = LocalPlayer.Character
-    if not myChar then return false, "Local character not found" end
-
-    local myHum = myChar:FindFirstChildOfClass("Humanoid")
-    local tgtHum = targetChar:FindFirstChildOfClass("Humanoid")
-    if not myHum or not tgtHum then return false, "Humanoid missing" end
-
-    local okDesc, desc = pcall(function()
-        return tgtHum:GetAppliedDescription()
-    end)
-    if okDesc and desc then
-        pcall(function()
-            myHum:ApplyDescription(desc)
-        end)
+    local plr = Players:GetPlayerFromCharacter(targetChar)
+    if plr then
+        return DarlingSkins.cloneByUserId(plr.UserId)
     end
-
-    pcall(function()
-        for _, item in ipairs(myChar:GetChildren()) do
-            if item:IsA("Accessory") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("BodyColors") then
-                item:Destroy()
-            end
-        end
-
-        for _, item in ipairs(targetChar:GetChildren()) do
-            if item:IsA("Shirt") or item:IsA("Pants") or item:IsA("ShirtGraphic") or item:IsA("BodyColors") then
-                local clone = item:Clone()
-                clone.Parent = myChar
-            elseif item:IsA("Accessory") then
-                local clone = item:Clone()
-                clone.Parent = myChar
-            end
-        end
-    end)
-
-    return true, "Cloned appearance from " .. targetChar.Name
+    return false, "Could not resolve player from character"
 end
 
 function DarlingSkins.cloneNearestPlayer()
@@ -928,41 +914,27 @@ function DarlingSkins.cloneNearestPlayer()
         end
     end
 
-    if closestPlr and closestPlr.Character then
-        return DarlingSkins.cloneCharacterAppearance(closestPlr.Character)
+    if closestPlr then
+        return DarlingSkins.cloneByUserId(closestPlr.UserId)
     end
     return false, "No nearby player found"
 end
 
 function DarlingSkins.cloneByUserId(identifier)
     if not identifier or identifier == "" then return false, "Invalid User ID or Name" end
-    local userId = tonumber(identifier)
-    if not userId then
-        local okId, fetchedId = pcall(function()
-            return Players:GetUserIdFromNameAsync(tostring(identifier))
-        end)
-        if okId and fetchedId then
-            userId = fetchedId
-        else
-            return false, "Could not resolve username: " .. tostring(identifier)
-        end
+    local engine = getAvatarEngine()
+    if engine and engine.apply then
+        return engine.apply(identifier)
     end
+    return false, "Avatar engine not available"
+end
 
-    local myChar = LocalPlayer.Character
-    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-    if not hum then return false, "Local character missing" end
-
-    local okDesc, desc = pcall(function()
-        return Players:GetHumanoidDescriptionFromUserId(userId)
-    end)
-    if okDesc and desc then
-        pcall(function()
-            hum:ApplyDescription(desc)
-        end)
-        return true, "Applied skin from User ID: " .. tostring(userId)
+function DarlingSkins.resetClonedAvatar()
+    local engine = getAvatarEngine()
+    if engine and engine.reset then
+        return engine.reset(true)
     end
-
-    return false, "Failed to load HumanoidDescription for User ID: " .. tostring(userId)
+    return false, "Avatar engine not available"
 end
 
 DarlingSkins.CharAddedConn = LocalPlayer.CharacterAdded:Connect(function(newChar)

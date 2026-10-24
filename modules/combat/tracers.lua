@@ -127,16 +127,30 @@ local function onRender()
     local camera = Workspace.CurrentCamera
     if not camera then return end
 
-    -- Target resolution: frame-accurate live position of active target
+    -- Target resolution: torso-accurate live position of active target
+    local function resolveTorso(part)
+        if not part or not part.Parent then return nil end
+        local model = part.Parent
+        if model:IsA("Accessory") and model.Parent then
+            model = model.Parent
+        end
+        local torso = model:FindFirstChild("HumanoidRootPart")
+            or model:FindFirstChild("UpperTorso")
+            or model:FindFirstChild("Torso")
+            or model:FindFirstChild("LowerTorso")
+            or part
+        return torso.Position
+    end
+
     local targetPos = nil
     if core then
         local activePart = core.CurrentTargetPart
         if activePart and activePart.Parent then
-            targetPos = activePart.Position
+            targetPos = resolveTorso(activePart)
         elseif core.resolveAnyTarget then
             local part = core.resolveAnyTarget()
             if part and part.Parent then
-                targetPos = part.Position
+                targetPos = resolveTorso(part)
             end
         end
     end
@@ -147,18 +161,15 @@ local function onRender()
         return
     end
 
-    local screenPos, onScreen = camera:WorldToScreenPoint(targetPos)
+    local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
     if not onScreen or screenPos.Z <= 0 then
         if guiLine then guiLine.Visible = false end
         if drawingLine then drawingLine.Visible = false end
         return
     end
 
-    local overlay = getOverlayGui()
-    local center = (overlay and overlay.AbsoluteSize and (overlay.AbsoluteSize / 2))
-        or Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-
-    local fromPos = center
+    local vp = camera.ViewportSize
+    local fromPos = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
     local toPos = Vector2.new(screenPos.X, screenPos.Y)
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
@@ -170,8 +181,9 @@ local function onRender()
         local distance = delta.Magnitude
         local angle = math.atan2(delta.Y, delta.X)
 
+        line.AnchorPoint = Vector2.new(0.5, 0.5)
         line.Size = UDim2.fromOffset(distance, thickness)
-        line.Position = UDim2.fromOffset((fromPos.X + toPos.X) / 2, (fromPos.Y + toPos.Y) / 2)
+        line.Position = UDim2.fromOffset((fromPos.X + toPos.X) * 0.5, (fromPos.Y + toPos.Y) * 0.5)
         line.Rotation = math.deg(angle)
         line.BackgroundColor3 = color
         line.Visible = true
