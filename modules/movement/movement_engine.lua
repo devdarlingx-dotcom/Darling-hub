@@ -24,7 +24,7 @@ local MovementEngine = {
     FlyBodyVelocity = nil,
     FlyBodyGyro = nil,
     FlyWidget = nil,
-    FlyKeybind = Enum.KeyCode.X,
+    FlyKeybind = nil, -- Unbound by default (X is a Blox Fruits skill key)
 
     -- Noclip
     NoclipEnabled = false,
@@ -295,9 +295,21 @@ function MovementEngine.doSuperJump()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum or hum.Health <= 0 then return end
 
-    local vel = hrp.AssemblyLinearVelocity
-    hrp.AssemblyLinearVelocity = Vector3.new(vel.X, MovementEngine.SuperJumpPower, vel.Z)
-    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+    local power = tonumber(MovementEngine.SuperJumpPower) or 500
+    local vel = hrp.AssemblyLinearVelocity or hrp.Velocity or Vector3.zero
+    hrp.AssemblyLinearVelocity = Vector3.new(vel.X, power, vel.Z)
+    pcall(function() hrp.Velocity = Vector3.new(vel.X, power, vel.Z) end)
+
+    task.defer(function()
+        if hrp and hrp.Parent then
+            local v = hrp.AssemblyLinearVelocity or hrp.Velocity or Vector3.zero
+            if v.Y < (power * 0.5) then
+                hrp.AssemblyLinearVelocity = Vector3.new(v.X, power, v.Z)
+                pcall(function() hrp.Velocity = Vector3.new(v.X, power, v.Z) end)
+            end
+        end
+    end)
 end
 
 function MovementEngine.setSuperJump(state, power)
@@ -390,7 +402,7 @@ end
 -- ========================================================================
 UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if input.KeyCode == MovementEngine.FlyKeybind then
+    if MovementEngine.FlyKeybind and input.KeyCode == MovementEngine.FlyKeybind then
         MovementEngine.toggleFly()
     end
     if input.KeyCode == Enum.KeyCode.W then flyKeys.W = true end

@@ -147,7 +147,7 @@ local function onRender()
         return
     end
 
-    local screenPos, onScreen = camera:WorldToViewportPoint(targetPos)
+    local screenPos, onScreen = camera:WorldToScreenPoint(targetPos)
     if not onScreen or screenPos.Z <= 0 then
         if guiLine then guiLine.Visible = false end
         if drawingLine then drawingLine.Visible = false end
@@ -155,11 +155,11 @@ local function onRender()
     end
 
     local overlay = getOverlayGui()
-    local origin = (overlay and overlay.AbsolutePosition) or Vector2.zero
+    local center = (overlay and overlay.AbsoluteSize and (overlay.AbsoluteSize / 2))
+        or Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 
-    -- Fullscreen coordinates adjusted for device safe area / notch insets
-    local fromPos = Vector2.new(camera.ViewportSize.X / 2 - origin.X, camera.ViewportSize.Y / 2 - origin.Y)
-    local toPos = Vector2.new(screenPos.X - origin.X, screenPos.Y - origin.Y)
+    local fromPos = center
+    local toPos = Vector2.new(screenPos.X, screenPos.Y)
     local color = settings.Color or Color3.fromRGB(255, 255, 255)
     local thickness = settings.Thickness or 1.5
 

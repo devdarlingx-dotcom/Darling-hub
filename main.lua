@@ -203,6 +203,85 @@ function DarlingHub:GetOverlay()
     return gui
 end
 
+function DarlingHub:StopAllAnimations()
+    pcall(function()
+        local mod = self.Modules["modules/special/kings_throne.lua"]
+        if mod and mod.dismiss then mod.dismiss() end
+    end)
+    pcall(function()
+        local mod = self.Modules["modules/special/transcendence_dragon.lua"]
+        if mod and mod.dismiss then mod.dismiss() end
+    end)
+    pcall(function()
+        local mod = self.Modules["modules/special/codex_admin.lua"]
+        if mod and mod.stop then mod.stop() end
+    end)
+    local env = (getgenv and getgenv()) or _G
+    if env.DarlingSovereign and type(env.DarlingSovereign.Stop) == "function" then
+        pcall(env.DarlingSovereign.Stop)
+    end
+    if _G.DarlingSovereign and type(_G.DarlingSovereign.Stop) == "function" then
+        pcall(_G.DarlingSovereign.Stop)
+    end
+    if self.SkipButton then
+        self.SkipButton.Visible = false
+    end
+end
+
+function DarlingHub:CreateSkipButton()
+    if self.SkipButton and self.SkipButton.Parent then
+        return self.SkipButton
+    end
+    local overlay = self:GetOverlay()
+    if not overlay then return nil end
+
+    local btn = Instance.new("TextButton")
+    btn.Name = "DarlingSkipAnimationBtn"
+    btn.Size = UDim2.fromOffset(105, 24)
+    btn.Position = UDim2.new(0.5, 0, 0, 8)
+    btn.AnchorPoint = Vector2.new(0.5, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    btn.BackgroundTransparency = 0.2
+    btn.BorderSizePixel = 0
+    btn.Text = "SKIP ANIMATION"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 10
+    btn.Visible = false
+    btn.ZIndex = 2147483000
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1.2
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Transparency = 0.15
+    stroke.Parent = btn
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 5)
+    corner.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        self:StopAllAnimations()
+        if WindUI and WindUI.Notify then
+            WindUI:Notify({
+                Title = "Animation Skipped",
+                Content = "All cinematics and effects stopped.",
+                Duration = 2,
+                Icon = "skip-forward"
+            })
+        end
+    end)
+
+    btn.Parent = overlay
+    self.SkipButton = btn
+    return btn
+end
+
+function DarlingHub:ShowSkipButton()
+    local btn = self:CreateSkipButton()
+    if btn then btn.Visible = true end
+end
+
 -- Enables/disables a module. Disabling a module that was never loaded does nothing,
 -- so nothing is downloaded or executed until the user actually turns it on.
 function DarlingHub:Toggle(relPath, state)
@@ -1186,19 +1265,6 @@ AimbotTab:Toggle({
     Callback = bindToggle("modules/combat/npc_aimbot.lua", "NPC Silent Aim")
 })
 
-AimbotTab:Toggle({
-    Title = "Team / Ally Check",
-    Desc = "Ignore allies and teammates (Marines vs Marines)",
-    Value = false,
-    Callback = function(state)
-        AimSettings.Aim.TeamCheck = state
-        local core = (_G.DarlingCombatCore) or (getgenv and getgenv().DarlingCombatCore)
-        if core then core.TeamCheck = state end
-        local playerAim = DarlingHub:Require("modules/combat/player_aimbot.lua")
-        if playerAim and playerAim.setTeamCheck then playerAim.setTeamCheck(state) end
-    end
-})
-
 AimbotTab:Dropdown({
     Title = "Target Priority",
     Values = { "Nearest", "Low HP", "Looking At Me" },
@@ -1455,6 +1521,18 @@ PvpTab:Toggle({
     end
 })
 
+PvpTab:Toggle({
+    Title = "Auto Buso Haki",
+    Desc = "Automatically activates Buso Haki during combat if disabled or unequipped (Cokeboys logic)",
+    Value = false,
+    Callback = function(state)
+        local mod = getPvpMod("modules/combat/auto_haki.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
+    end
+})
+
 PvpTab:Divider()
 
 -- --- Defense & Awakening ---
@@ -1595,7 +1673,7 @@ PvpTab:Slider({
 
 PvpTab:Toggle({
     Title = "Flight Mode",
-    Desc = "Smooth 3D camera-directed flight [Key: X, Controls: WASD, Space, Shift]",
+    Desc = "Smooth 3D camera-directed flight [Controls: WASD, Space, Shift]",
     Value = false,
     Callback = function(state)
         local mod = getPvpMod("modules/movement/movement_engine.lua")
@@ -2069,6 +2147,18 @@ VisualsTab:Dropdown({
     Callback = function(selected)
         local mod = getVisualsMod("modules/visuals/shaders_skybox.lua")
         if mod then mod.setSkybox(mod.SkyboxEnabled, selected) end
+    end
+})
+
+VisualsTab:Toggle({
+    Title = "Throne Shaders (Cosmic Midnight)",
+    Desc = "King's Throne cinematic lighting: deep purple atmosphere, intense bloom, and cosmic void",
+    Value = false,
+    Callback = function(state)
+        local mod = getVisualsMod("modules/visuals/throne_shaders.lua")
+        if mod then
+            if state then mod.enable() else mod.disable() end
+        end
     end
 })
 
@@ -2616,6 +2706,24 @@ MusicTab:Button({
     end
 })
 
+MusicTab:Button({
+    Title = "DevPlay-Music",
+    Desc = "Launch DevPlay-Music external audio loader",
+    Callback = function()
+        WindUI:Notify({
+            Title = "DevPlay-Music",
+            Content = "Loading DevPlay-Music...",
+            Duration = 3,
+            Icon = "music"
+        })
+        task.spawn(function()
+            pcall(function()
+                loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/40376d3a68c7373d1d2b6a1742148927.lua"))()
+            end)
+        end)
+    end
+})
+
 MusicTab:Divider()
 
 MusicTab:Paragraph({
@@ -3018,6 +3126,7 @@ SummonDragonTab:Button({
     Callback = function()
         local mod = DarlingHub:Require("modules/special/kings_throne.lua")
         if mod then
+            DarlingHub:ShowSkipButton()
             WindUI:Notify({
                 Title = tr("KingsThrone"),
                 Content = tr("ThroneSummoning"),
@@ -3025,6 +3134,107 @@ SummonDragonTab:Button({
                 Icon = darlingIcon
             })
             mod.playCinematic()
+        end
+    end
+})
+
+SummonDragonTab:Divider()
+
+SummonDragonTab:Paragraph({
+    Title = "Admin Cinematic (Codex)",
+    Desc = "Celestial Sovereign V2.2 full cinematic admin animation with procedural rigs, star plasma, and 12 camera shots",
+    Image = "shield-alert"
+})
+
+SummonDragonTab:Button({
+    Title = "Play Celestial Sovereign (Admin Cinematic)",
+    Desc = "Launches the high-intensity Codex Admin cinematic animation",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/codex_admin.lua")
+        if mod then
+            DarlingHub:ShowSkipButton()
+            WindUI:Notify({
+                Title = "Celestial Sovereign",
+                Content = "Starting Codex Admin Animation...",
+                Duration = 3,
+                Icon = darlingIcon
+            })
+            mod.play()
+        end
+    end
+})
+
+SummonDragonTab:Button({
+    Title = "Stop Celestial Sovereign",
+    Desc = "Cancels the admin animation and restores camera and character",
+    Callback = function()
+        local mod = DarlingHub:Require("modules/special/codex_admin.lua")
+        if mod then
+            mod.stop()
+            WindUI:Notify({
+                Title = "Celestial Sovereign",
+                Content = "Admin animation stopped.",
+                Duration = 2,
+                Icon = darlingIcon
+            })
+        end
+    end
+})
+
+SummonDragonTab:Divider()
+
+SummonDragonTab:Paragraph({
+    Title = "Animation Controls & Custom Music",
+    Desc = "Skip any active animation or set custom audio tracks per animation",
+    Image = "music"
+})
+
+SummonDragonTab:Button({
+    Title = "Skip Current Animation",
+    Desc = "Instantly cancels any running Throne, Dragon, or Codex Sovereign animation",
+    Callback = function()
+        DarlingHub:StopAllAnimations()
+        WindUI:Notify({
+            Title = "Animation Skipped",
+            Content = "All animations stopped and character restored.",
+            Duration = 2,
+            Icon = "skip-forward"
+        })
+    end
+})
+
+SummonDragonTab:Toggle({
+    Title = "Show Top Skip Button",
+    Desc = "Shows small floating white-bordered button at top of screen to skip animations anytime",
+    Value = false,
+    Callback = function(state)
+        local btn = DarlingHub:CreateSkipButton()
+        if btn then btn.Visible = state end
+    end
+})
+
+SummonDragonTab:Input({
+    Title = "Throne Custom Music ID / URL",
+    Desc = "Set custom soundtrack for King's Throne (e.g. d_def47db76206 or asset ID)",
+    Placeholder = "Enter track ID...",
+    Value = "d_def47db76206",
+    Callback = function(text)
+        local mod = DarlingHub:Require("modules/special/kings_throne.lua")
+        if mod and text and #text > 0 then
+            mod.CustomMusicId = text
+        end
+    end
+})
+
+SummonDragonTab:Input({
+    Title = "Admin Cinematic Custom Music ID",
+    Desc = "Set custom soundtrack for Celestial Sovereign (rbxassetid:// or sound ID)",
+    Placeholder = "rbxassetid://...",
+    Value = "rbxassetid://90089940136467",
+    Callback = function(text)
+        local mod = DarlingHub:Require("modules/special/codex_admin.lua")
+        if mod and text and #text > 0 then
+            mod.CustomMusicId = text
         end
     end
 })
@@ -3235,6 +3445,42 @@ PersonalizationTab:Button({
     Callback = function()
         lastEnteredBackgroundInput = "d_8c246681eb77"
         processAndApplyMediaInput("d_8c246681eb77")
+    end
+})
+
+PersonalizationTab:Button({
+    Title = "Video: Monika (You Look Lonely)",
+    Desc = "Monika atmospheric neon scene with audio.",
+    Callback = function()
+        lastEnteredBackgroundInput = "d_e4a758d572cf"
+        processAndApplyMediaInput("d_e4a758d572cf")
+    end
+})
+
+PersonalizationTab:Button({
+    Title = "Video: Hacker Room (Rainy Night)",
+    Desc = "2000s cyber hacker room with falling rain.",
+    Callback = function()
+        lastEnteredBackgroundInput = "d_8fc380896ec6"
+        processAndApplyMediaInput("d_8fc380896ec6")
+    end
+})
+
+PersonalizationTab:Button({
+    Title = "Image: Anime Aesthetic (Midnight)",
+    Desc = "High quality aesthetic anime wallpaper.",
+    Callback = function()
+        lastEnteredBackgroundInput = "d_bc0f17390bb1"
+        processAndApplyMediaInput("d_bc0f17390bb1")
+    end
+})
+
+PersonalizationTab:Button({
+    Title = "Video: Miku Love Letter",
+    Desc = "Hatsune Miku love letter animation.",
+    Callback = function()
+        lastEnteredBackgroundInput = "d_cf8b2400db08"
+        processAndApplyMediaInput("d_cf8b2400db08")
     end
 })
 
@@ -3596,6 +3842,46 @@ local function ensureConfigFolder()
     end)
 end
 
+local function serializeTable(tbl)
+    if type(tbl) ~= "table" then return tbl end
+    local out = {}
+    for k, v in pairs(tbl) do
+        local vt = typeof(v)
+        if vt == "Color3" then
+            out[k] = { __type = "Color3", R = v.R, G = v.G, B = v.B }
+        elseif vt == "Vector2" then
+            out[k] = { __type = "Vector2", X = v.X, Y = v.Y }
+        elseif vt == "Vector3" then
+            out[k] = { __type = "Vector3", X = v.X, Y = v.Y, Z = v.Z }
+        elseif vt == "table" then
+            out[k] = serializeTable(v)
+        elseif vt == "number" or vt == "string" or vt == "boolean" then
+            out[k] = v
+        end
+    end
+    return out
+end
+
+local function deserializeTable(tbl)
+    if type(tbl) ~= "table" then return tbl end
+    if tbl.__type == "Color3" and tbl.R and tbl.G and tbl.B then
+        return Color3.new(tbl.R, tbl.G, tbl.B)
+    elseif tbl.__type == "Vector2" and tbl.X and tbl.Y then
+        return Vector2.new(tbl.X, tbl.Y)
+    elseif tbl.__type == "Vector3" and tbl.X and tbl.Y and tbl.Z then
+        return Vector3.new(tbl.X, tbl.Y, tbl.Z)
+    end
+    local out = {}
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            out[k] = deserializeTable(v)
+        else
+            out[k] = v
+        end
+    end
+    return out
+end
+
 local function saveHubConfig()
     ensureConfigFolder()
     local cfg = {
@@ -3606,6 +3892,7 @@ local function saveHubConfig()
         BackgroundMedia = lastEnteredBackgroundInput or "",
         BackgroundBlur = currentBgBlur or 0,
         BackgroundTransparency = currentBgTransparency or 0.15,
+        Settings = serializeTable(DarlingHub.Settings or {}),
         Skins = {
             SelectedCategory = selectedCategory or "Fruits",
             SelectedPreset = selectedSkinPreset or "Purple",
@@ -3627,7 +3914,10 @@ local function saveHubConfig()
     end)
 
     if writefile then
-        local json = HttpService:JSONEncode(cfg)
+        local okJson, json = pcall(function() return HttpService:JSONEncode(cfg) end)
+        if not okJson or not json then
+            return false, "JSON encode failed: " .. tostring(json)
+        end
         local ok, err = pcall(function()
             writefile(PRIMARY_CONFIG, json)
         end)
@@ -3692,6 +3982,20 @@ local function loadHubConfig()
             task.spawn(function()
                 processAndApplyMediaInput(data.BackgroundMedia)
             end)
+        end
+        if data.Settings and type(data.Settings) == "table" then
+            local restored = deserializeTable(data.Settings)
+            if DarlingHub.Settings then
+                for k, v in pairs(restored) do
+                    if type(v) == "table" and type(DarlingHub.Settings[k]) == "table" then
+                        for subK, subV in pairs(v) do
+                            DarlingHub.Settings[k][subK] = subV
+                        end
+                    else
+                        DarlingHub.Settings[k] = v
+                    end
+                end
+            end
         end
         if data.Skins and type(data.Skins) == "table" then
             if data.Skins.SelectedCategory then

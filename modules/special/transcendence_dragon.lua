@@ -2033,6 +2033,43 @@ function Transcendence.startFlightController()
         clickBtn.MouseButton1Click:Connect(function()
             Transcendence.dismount()
         end)
+
+        local upBtn = Instance.new("TextButton")
+        upBtn.Name = "UpBtn"
+        upBtn.Size = UDim2.new(0, 34, 0, 34)
+        upBtn.Position = UDim2.new(0.5, 75, 0.88, 0)
+        upBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+        upBtn.BackgroundTransparency = 0.2
+        upBtn.Text = "UP"
+        upBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
+        upBtn.Font = Enum.Font.GothamBold
+        upBtn.TextSize = 10
+        upBtn.Parent = sg
+        local upCorner = Instance.new("UICorner")
+        upCorner.CornerRadius = UDim.new(0, 8)
+        upCorner.Parent = upBtn
+
+        upBtn.MouseButton1Down:Connect(function() Transcendence.MobileFlyUp = true end)
+        upBtn.MouseButton1Up:Connect(function() Transcendence.MobileFlyUp = false end)
+
+        local downBtn = Instance.new("TextButton")
+        downBtn.Name = "DownBtn"
+        downBtn.Size = UDim2.new(0, 34, 0, 34)
+        downBtn.Position = UDim2.new(0.5, -119, 0.88, 0)
+        downBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+        downBtn.BackgroundTransparency = 0.2
+        downBtn.Text = "DN"
+        downBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
+        downBtn.Font = Enum.Font.GothamBold
+        downBtn.TextSize = 10
+        downBtn.Parent = sg
+        local dnCorner = Instance.new("UICorner")
+        dnCorner.CornerRadius = UDim.new(0, 8)
+        dnCorner.Parent = downBtn
+
+        downBtn.MouseButton1Down:Connect(function() Transcendence.MobileFlyDown = true end)
+        downBtn.MouseButton1Up:Connect(function() Transcendence.MobileFlyDown = false end)
+
         Transcendence.DismountGui = sg
     end
 
@@ -2084,10 +2121,27 @@ function Transcendence.startFlightController()
 
         -- 2. Thumbstick / Gamepad / Mobile input fallback
         if fwd == 0 and rgt == 0 then
-            local okVec, v = pcall(function() return UserInputService:GetMoveVector() end)
-            if okVec and typeof(v) == "Vector3" and v.Magnitude > 0.05 then
-                fwd = -v.Z
-                rgt = v.X
+            if hum and hum.MoveDirection.Magnitude > 0.05 then
+                local md = hum.MoveDirection
+                fwd = md:Dot(camCF.LookVector)
+                rgt = md:Dot(camCF.RightVector)
+            end
+
+            if fwd == 0 and rgt == 0 then
+                pcall(function()
+                    local pm = LocalPlayer:FindFirstChild("PlayerScripts")
+                    pm = pm and pm:FindFirstChild("PlayerModule")
+                    if pm then
+                        local controls = require(pm):GetControls()
+                        if controls and controls.GetMoveVector then
+                            local mv = controls:GetMoveVector()
+                            if mv and mv.Magnitude > 0.05 then
+                                fwd = -mv.Z
+                                rgt = mv.X
+                            end
+                        end
+                    end
+                end)
             end
         end
 
@@ -2102,10 +2156,10 @@ function Transcendence.startFlightController()
         end
 
         -- Vertical ascent, descent, and sprint boost
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) or Transcendence.MobileFlyUp then
             moveDir = moveDir + Vector3.new(0, 1.2, 0)
         end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.E) then
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.E) or Transcendence.MobileFlyDown then
             moveDir = moveDir - Vector3.new(0, 1.2, 0)
         end
 
@@ -2241,6 +2295,8 @@ end
 
 function Transcendence.dismount()
     Transcendence.IsRiding = false
+    Transcendence.MobileFlyUp = false
+    Transcendence.MobileFlyDown = false
     Transcendence.setMountPromptVisible(true)
     if Transcendence.FlightConn then
         pcall(function() Transcendence.FlightConn:Disconnect() end)

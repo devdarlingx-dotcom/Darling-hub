@@ -159,55 +159,11 @@ local function getHRP(char)
 end
 
 -- ============================================================================
--- TEAM & ALLY CHECKS (BLOX FRUITS SPECIFIC)
+-- ENEMY & TARGET FILTER
 -- ============================================================================
-local function isAlly(player)
-    if not player or not LocalPlayer or player == LocalPlayer then return false end
-
-    -- 1. Crew check (Blox Fruits attribute or Data folder)
-    local myCrew = LocalPlayer:GetAttribute("Crew")
-    local targetCrew = player:GetAttribute("Crew")
-    if myCrew and targetCrew and myCrew ~= 0 and myCrew ~= "" and myCrew == targetCrew then
-        return true
-    end
-
-    -- 2. GUI confirmed ally check (only if explicitly accepted)
-    local ok, res = pcall(function()
-        local myGui = LocalPlayer:FindFirstChild("PlayerGui")
-        local main = myGui and myGui:FindFirstChild("Main")
-        local allies = main and main:FindFirstChild("Allies")
-        if allies and allies.Visible then
-            local container = allies:FindFirstChild("Container")
-            local alliesSection = container and container:FindFirstChild("Allies")
-            local scroll = alliesSection and alliesSection:FindFirstChild("ScrollingFrame")
-            if scroll then
-                local item = scroll:FindFirstChild(player.Name)
-                if item then
-                    local btn = item:FindFirstChildWhichIsA("TextButton") or item:FindFirstChildWhichIsA("ImageButton")
-                    if btn and (string.find(string.lower(tostring(btn.Text or "")), "break") or string.find(string.lower(tostring(btn.Text or "")), "leave")) then
-                        return true
-                    end
-                end
-            end
-        end
-        return false
-    end)
-    return ok and res or false
-end
-
 local function isEnemy(targetPlayer)
     if not targetPlayer or targetPlayer == LocalPlayer then return false end
     if Core.isPlayerBlacklisted(targetPlayer) then return false end
-    if not Core.TeamCheck then return true end
-    if isAlly(targetPlayer) then return false end
-
-    local myTeam = LocalPlayer.Team
-    local targetTeam = targetPlayer.Team
-    if myTeam and targetTeam then
-        if myTeam.Name == "Marines" and targetTeam.Name == "Marines" then
-            return false
-        end
-    end
     return true
 end
 

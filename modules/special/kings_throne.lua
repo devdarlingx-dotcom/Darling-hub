@@ -170,11 +170,21 @@ local function playThroneMusic()
     pcall(function()
         stopThroneMusic()
 
+        local trackId = KingsThrone.CustomMusicId or MONTAGEM_TOPAZ_ID
+        if tostring(trackId):match("^rbxassetid://") or tostring(trackId):match("^%d+$") then
+            local asset = tostring(trackId):match("^rbxassetid://") and trackId or ("rbxassetid://" .. tostring(trackId))
+            local dm = getMusicEngine()
+            if dm and dm.play then
+                dm.Looped = false
+                dm.play(asset, "Custom Throne Track")
+                return
+            end
+        end
+        local fname = "devmp3_" .. tostring(trackId) .. ".mp3"
+        local url = "https://darling-media-api.onrender.com/stream/" .. tostring(trackId) .. "?k=darling_secret_key"
         local exIsFile = isfile or is_file
         local exWriteFile = writefile
         local exGetCustomAsset = getcustomasset
-        local fname = "devmp3_" .. MONTAGEM_TOPAZ_ID .. ".mp3"
-        local url = "https://darling-media-api.onrender.com/stream/" .. MONTAGEM_TOPAZ_ID .. "?k=darling_secret_key"
 
         task.spawn(function()
             local fileExists = false
