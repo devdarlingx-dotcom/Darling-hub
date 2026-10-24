@@ -467,4 +467,14 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
     end
 end)
 
+function MovementEngine.disable()
+    MovementEngine.setWalkSpeed(false, 16)
+    MovementEngine.setFly(false)
+    MovementEngine.setNoclip(false)
+    MovementEngine.setDashDistance(false, 50)
+    MovementEngine.setInfiniteJump(false)
+    MovementEngine.setSuperJump(false)
+    MovementEngine.setWalkOnWater(false)
+end
+
 return MovementEngine

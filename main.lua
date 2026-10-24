@@ -97,6 +97,7 @@ local DarlingHub = {
     FeatureStates = {},
     FeatureSetters = {},
     UIElements = {},
+    DefaultValues = {},
     -- Shared settings: UI writes here, modules read here (no module load needed)
     Settings = {
         Aim = {
@@ -134,16 +135,17 @@ _G.DarlingHub = DarlingHub
 local autoSaveConfig = true
 local autoLoadConfig = true
 local autoSaveDebounce = false
+local isLoadingConfig = false
 local saveHubConfig = nil
 local loadHubConfig = nil
 
 local function triggerAutoSave()
-    if not autoSaveConfig then return end
+    if isLoadingConfig or not autoSaveConfig then return end
     if autoSaveDebounce then return end
     autoSaveDebounce = true
     task.delay(0.5, function()
         autoSaveDebounce = false
-        if saveHubConfig then
+        if not isLoadingConfig and saveHubConfig then
             pcall(saveHubConfig)
         end
     end)
@@ -267,6 +269,21 @@ function DarlingHub:Toggle(relPath, state)
     return ok
 end
 
+function DarlingHub:DisableAllModules()
+    for _, mod in pairs(self.Modules) do
+        if type(mod) == "table" then
+            if mod.disable then
+                pcall(mod.disable)
+            elseif mod.stop then
+                pcall(mod.stop)
+            elseif mod.dismiss then
+                pcall(mod.dismiss)
+            end
+        end
+    end
+    pcall(function() self:StopAllAnimations() end)
+end
+
 function DarlingHub:UnloadAll()
     if self.DiagnosticThread then
         pcall(function() task.cancel(self.DiagnosticThread) end)
@@ -386,6 +403,211 @@ local Window = WindUI:CreateWindow({
     }
 })
 DarlingHub.Window = Window
+
+-- ========================================================================
+-- CENTRAL TAB ELEMENT INTERCEPTOR & PERSISTENCE ENGINE
+-- Automatically registers every Toggle, Slider, and Dropdown across all tabs
+-- into DarlingHub.UIElements, DarlingHub.DefaultValues, and DarlingHub.FeatureStates,
+-- triggering auto-save and enabling seamless load and complete reset.
+-- ========================================================================
+local originalWindowTab = Window.Tab
+Window.Tab = function(self, tabCfg)
+    local tab = originalWindowTab(self, tabCfg)
+
+    -- 1. Intercept tab:Toggle
+    local origToggle = tab.Toggle
+    tab.Toggle = function(tSelf, cfg)
+        if type(cfg) ~= "table" then return origToggle(tSelf, cfg) end
+
+        local title = cfg.Title or "Toggle"
+        local key = cfg.Key or cfg.Flag or cfg.Id or title
+        local defaultVal = (cfg.Value == true)
+
+        DarlingHub.DefaultValues[key] = defaultVal
+        if DarlingHub.FeatureStates[key] == nil then
+            DarlingHub.FeatureStates[key] = defaultVal
+        end
+
+        local userCallback = cfg.Callback
+        cfg.Callback = function(state)
+            DarlingHub.FeatureStates[key] = state
+            if userCallback then
+                local ok, err = pcall(userCallback, state)
+                if not ok then
+                    warn("[Darling Hub] Toggle callback error (" .. tostring(key) .. "): " .. tostring(err))
+                end
+            end
+            if not isLoadingConfig then
+                triggerAutoSave()
+            end
+        end
+
+        local el = origToggle(tSelf, cfg)
+        DarlingHub.UIElements[key] = el
+        DarlingHub.FeatureSetters[key] = function(v)
+            pcall(function()
+                if el.Set then el:Set(v) end
+            end)
+        end
+
+        -- Backward-compatibility aliases
+        if title == "Show Tracers" or key == "Show Tracers" then
+            DarlingHub.UIElements["Tracers"] = el
+            DarlingHub.DefaultValues["Tracers"] = defaultVal
+            DarlingHub.FeatureSetters["Tracers"] = DarlingHub.FeatureSetters[key]
+        elseif title == "Target Tracker" or key == "Target Tracker" then
+            DarlingHub.UIElements["Tracker"] = el
+            DarlingHub.DefaultValues["Tracker"] = defaultVal
+            DarlingHub.FeatureSetters["Tracker"] = DarlingHub.FeatureSetters[key]
+        elseif title == "Tracker Widget" or key == "Tracker Widget" then
+            DarlingHub.UIElements["TrackerWidget"] = el
+            DarlingHub.DefaultValues["TrackerWidget"] = defaultVal
+            DarlingHub.FeatureSetters["TrackerWidget"] = DarlingHub.FeatureSetters[key]
+        end
+
+        return el
+    end
+
+    -- 2. Intercept tab:Slider
+    local origSlider = tab.Slider
+    tab.Slider = function(tSelf, cfg)
+        if type(cfg) ~= "table" then return origSlider(tSelf, cfg) end
+
+        local title = cfg.Title or "Slider"
+        local key = cfg.Key or cfg.Flag or cfg.Id or title
+        local defaultVal = 0
+        if type(cfg.Value) == "table" then
+            defaultVal = cfg.Value.Default or cfg.Value.Min or 0
+        elseif type(cfg.Value) == "number" then
+            defaultVal = cfg.Value
+        elseif type(cfg.Default) == "number" then
+            defaultVal = cfg.Default
+        end
+
+        DarlingHub.DefaultValues[key] = defaultVal
+        if DarlingHub.FeatureStates[key] == nil then
+            DarlingHub.FeatureStates[key] = defaultVal
+        end
+
+        local userCallback = cfg.Callback
+        cfg.Callback = function(val)
+            DarlingHub.FeatureStates[key] = val
+            if userCallback then
+                local ok, err = pcall(userCallback, val)
+                if not ok then
+                    warn("[Darling Hub] Slider callback error (" .. tostring(key) .. "): " .. tostring(err))
+                end
+            end
+            if not isLoadingConfig then
+                triggerAutoSave()
+            end
+        end
+
+        local el = origSlider(tSelf, cfg)
+        DarlingHub.UIElements[key] = el
+        DarlingHub.FeatureSetters[key] = function(v)
+            pcall(function()
+                if el.Set then el:Set(v) end
+            end)
+        end
+
+        if title == "Tracker Distance" or key == "Tracker Distance" then
+            DarlingHub.UIElements["TrackerDistance"] = el
+            DarlingHub.DefaultValues["TrackerDistance"] = defaultVal
+            DarlingHub.FeatureSetters["TrackerDistance"] = DarlingHub.FeatureSetters[key]
+        end
+
+        return el
+    end
+
+    -- 3. Intercept tab:Dropdown
+    local origDropdown = tab.Dropdown
+    tab.Dropdown = function(tSelf, cfg)
+        if type(cfg) ~= "table" then return origDropdown(tSelf, cfg) end
+
+        local title = cfg.Title or "Dropdown"
+        local key = cfg.Key or cfg.Flag or cfg.Id or title
+        local defaultVal = cfg.Value or cfg.Default or (cfg.Values and cfg.Values[1])
+
+        DarlingHub.DefaultValues[key] = defaultVal
+        if DarlingHub.FeatureStates[key] == nil then
+            DarlingHub.FeatureStates[key] = defaultVal
+        end
+
+        local userCallback = cfg.Callback
+        cfg.Callback = function(val)
+            DarlingHub.FeatureStates[key] = val
+            if userCallback then
+                local ok, err = pcall(userCallback, val)
+                if not ok then
+                    warn("[Darling Hub] Dropdown callback error (" .. tostring(key) .. "): " .. tostring(err))
+                end
+            end
+            if not isLoadingConfig then
+                triggerAutoSave()
+            end
+        end
+
+        local el = origDropdown(tSelf, cfg)
+        if el and not el.Set and el.Select then
+            el.Set = function(dSelf, v)
+                pcall(function() dSelf:Select(v) end)
+            end
+        end
+
+        DarlingHub.UIElements[key] = el
+        DarlingHub.FeatureSetters[key] = function(v)
+            pcall(function()
+                if el.Select then
+                    el:Select(v)
+                elseif el.Set then
+                    el:Set(v)
+                end
+            end)
+        end
+
+        if title == "Tracer Mode" or key == "Tracer Mode" then
+            DarlingHub.UIElements["TracerMode"] = el
+            DarlingHub.DefaultValues["TracerMode"] = defaultVal
+            DarlingHub.FeatureSetters["TracerMode"] = DarlingHub.FeatureSetters[key]
+        elseif title == "Tracer Origin" or key == "Tracer Origin" then
+            DarlingHub.UIElements["TracerOrigin"] = el
+            DarlingHub.DefaultValues["TracerOrigin"] = defaultVal
+            DarlingHub.FeatureSetters["TracerOrigin"] = DarlingHub.FeatureSetters[key]
+        elseif title == "Tracer Color" or key == "Tracer Color" then
+            DarlingHub.UIElements["TracerColor"] = el
+            DarlingHub.DefaultValues["TracerColor"] = defaultVal
+            DarlingHub.FeatureSetters["TracerColor"] = DarlingHub.FeatureSetters[key]
+        end
+
+        return el
+    end
+
+    -- 4. Intercept tab:Input
+    local origInput = tab.Input
+    tab.Input = function(tSelf, cfg)
+        if type(cfg) ~= "table" then return origInput(tSelf, cfg) end
+
+        local title = cfg.Title or "Input"
+        local key = cfg.Key or cfg.Flag or cfg.Id or title
+        local defaultVal = cfg.Value or ""
+
+        DarlingHub.DefaultValues[key] = defaultVal
+
+        local userCallback = cfg.Callback
+        cfg.Callback = function(val)
+            if userCallback then
+                pcall(userCallback, val)
+            end
+        end
+
+        local el = origInput(tSelf, cfg)
+        DarlingHub.UIElements[key] = el
+        return el
+    end
+
+    return tab
+end
 
 -- Enforce pure black border on OpenButton
 local function enforceBlackOpenButtonBorder()
@@ -557,6 +779,7 @@ end
 local currentBackgroundTransparency = 0.25
 local currentScaleType = Enum.ScaleType.Crop
 local lastEnteredBackgroundInput = ""
+local currentAppliedMediaInput = nil
 
 local activeAnimTask = nil
 local activeDownloadTask = nil
@@ -645,6 +868,7 @@ local function setupBackgroundContainers()
 end
 
 local function clearActiveMedia()
+    currentAppliedMediaInput = nil
     if activeAnimTask then
         task.cancel(activeAnimTask)
         activeAnimTask = nil
@@ -1000,6 +1224,8 @@ local function processAndApplyMediaInput(input)
     if not input or type(input) ~= "string" then return end
     local clean = input:gsub("^%s+", ""):gsub("%s+$", "")
     if #clean == 0 then return end
+    if currentAppliedMediaInput == clean then return end
+    currentAppliedMediaInput = clean
 
     local darlingId = clean:match("id=([%w_%-]+)") or clean:match("v=([%w_%-]+)") or clean:match("^(d_[%w_%-]+)$")
 
@@ -3372,11 +3598,12 @@ local bgInputObj = PersonalizationTab:Input({
     Title = "Media URL or ID",
     Desc = "Paste video link, slot ID, or loadstring command",
     Placeholder = "Enter URL or ID...",
-    Value = "d_d54d5cfd6e07",
+    Value = "",
     ClearTextOnFocus = false,
     Callback = function(text)
-        lastEnteredBackgroundInput = text
-        processAndApplyMediaInput(text)
+        if text and #text > 0 then
+            lastEnteredBackgroundInput = text
+        end
     end
 })
 
@@ -3980,7 +4207,7 @@ saveHubConfig = function()
         BackgroundBlur = currentBgBlur or 0,
         BackgroundTransparency = currentBackgroundTransparency or 0.25,
         Settings = serializeTable(DarlingHub.Settings or {}),
-        Features = DarlingHub.FeatureStates or {},
+        Features = serializeTable(DarlingHub.FeatureStates or {}),
         Skins = {
             SelectedCategory = selectedCategory or "Fruits",
             SelectedPreset = selectedSkinPreset or "Purple",
@@ -4060,6 +4287,7 @@ loadHubConfig = function(silent)
         return false, "Invalid config data"
     end
 
+    isLoadingConfig = true
     pcall(function()
         if data.Language and Translations[data.Language] then
             applyLanguage(data.Language)
@@ -4090,12 +4318,13 @@ loadHubConfig = function(silent)
             end
         end
         if data.BackgroundMedia and data.BackgroundMedia ~= "" then
-            if data.BackgroundMedia ~= lastEnteredBackgroundInput then
-                lastEnteredBackgroundInput = data.BackgroundMedia
-                task.spawn(function()
-                    processAndApplyMediaInput(data.BackgroundMedia)
-                end)
+            lastEnteredBackgroundInput = data.BackgroundMedia
+            if bgInputObj and bgInputObj.Set then
+                pcall(function() bgInputObj:Set(data.BackgroundMedia) end)
             end
+            task.spawn(function()
+                processAndApplyMediaInput(data.BackgroundMedia)
+            end)
         end
         if data.BackgroundDimming ~= nil and tintOverlay then
             currentBgDimming = data.BackgroundDimming
@@ -4121,13 +4350,20 @@ loadHubConfig = function(silent)
         end
         if data.Features and type(data.Features) == "table" then
             DarlingHub.FeatureStates = DarlingHub.FeatureStates or {}
-            for k, v in pairs(data.Features) do
+            local restoredFeatures = deserializeTable(data.Features)
+            for k, v in pairs(restoredFeatures) do
                 DarlingHub.FeatureStates[k] = v
-                if DarlingHub.FeatureSetters and DarlingHub.FeatureSetters[k] then
+                if DarlingHub.UIElements and DarlingHub.UIElements[k] then
+                    local el = DarlingHub.UIElements[k]
+                    pcall(function()
+                        if el.Set then
+                            el:Set(v)
+                        elseif el.Select then
+                            el:Select(v)
+                        end
+                    end)
+                elseif DarlingHub.FeatureSetters and DarlingHub.FeatureSetters[k] then
                     pcall(DarlingHub.FeatureSetters[k], v)
-                end
-                if DarlingHub.UIElements and DarlingHub.UIElements[k] and DarlingHub.UIElements[k].Set then
-                    pcall(function() DarlingHub.UIElements[k]:Set(v) end)
                 end
             end
         end
@@ -4139,6 +4375,9 @@ loadHubConfig = function(silent)
                 selectedSkinPreset = data.Skins.SelectedPreset
             end
         end
+    end)
+    task.delay(0.2, function()
+        isLoadingConfig = false
     end)
     return true, data
 end
@@ -4281,24 +4520,77 @@ SettingsTab:Divider()
 SettingsTab:Button({
     Title = "Reset Default Settings",
     Callback = function()
+        isLoadingConfig = true
+
+        -- 1. Reset all registered UI elements to their defaults
+        if DarlingHub.UIElements then
+            for k, el in pairs(DarlingHub.UIElements) do
+                local def = DarlingHub.DefaultValues and DarlingHub.DefaultValues[k]
+                if def == nil then
+                    if el.__type == "Toggle" then
+                        def = false
+                    elseif el.__type == "Slider" then
+                        def = 0
+                    elseif el.__type == "Dropdown" and el.Values then
+                        def = el.Values[1]
+                    end
+                end
+                if def ~= nil then
+                    DarlingHub.FeatureStates[k] = def
+                    pcall(function()
+                        if el.Set then
+                            el:Set(def)
+                        elseif el.Select then
+                            el:Select(def)
+                        end
+                    end)
+                end
+            end
+        end
+
+        -- 2. Cleanly stop/disable all running modules
+        pcall(function() DarlingHub:DisableAllModules() end)
+
+        -- 3. Reset background to default
+        lastEnteredBackgroundInput = "d_d54d5cfd6e07"
+        if bgInputObj and bgInputObj.Set then
+            pcall(function() bgInputObj:Set("d_d54d5cfd6e07") end)
+        end
+        task.spawn(function()
+            processAndApplyMediaInput("d_d54d5cfd6e07")
+        end)
+
+        -- 4. Reset Theme, Language, Keybind, AutoSave, AutoLoad
         currentLanguage = "English"
         currentToggleKey = Enum.KeyCode.F
         autoSaveConfig = true
+        autoLoadConfig = true
         currentSelectedTheme = "Dark"
         pcall(function() WindUI:SetTheme("Dark") end)
         if ThemeDropdown and ThemeDropdown.Select then
             pcall(function() ThemeDropdown:Select("Dark") end)
         end
-        pcall(function()
-            if isfile and delfile then
-                if isfile(PRIMARY_CONFIG) then delfile(PRIMARY_CONFIG) end
-                if isfile(FALLBACK_CONFIG) then delfile(FALLBACK_CONFIG) end
-            end
-        end)
-        applyLanguage("English")
         if LanguageDropdown and LanguageDropdown.Select then
             pcall(function() LanguageDropdown:Select("English") end)
         end
+        applyLanguage("English")
+
+        if DarlingHub.UIElements["AutoSave"] and DarlingHub.UIElements["AutoSave"].Set then
+            pcall(function() DarlingHub.UIElements["AutoSave"]:Set(true) end)
+        end
+        if DarlingHub.UIElements["AutoLoad"] and DarlingHub.UIElements["AutoLoad"].Set then
+            pcall(function() DarlingHub.UIElements["AutoLoad"]:Set(true) end)
+        end
+        if DarlingHub.UIElements["Hub Toggle Shortcut"] and DarlingHub.UIElements["Hub Toggle Shortcut"].Set then
+            pcall(function() DarlingHub.UIElements["Hub Toggle Shortcut"]:Set("F") end)
+        end
+
+        -- 5. Overwrite the saved config on disk with clean default state
+        isLoadingConfig = false
+        if saveHubConfig then
+            saveHubConfig()
+        end
+
         WindUI:Notify({
             Title = "Settings Reset",
             Content = tr("ConfigReset"),
@@ -4346,19 +4638,15 @@ Window:SelectTab(1)
 
 -- Auto-load saved configuration on startup if enabled
 task.spawn(function()
-    task.wait(0.3)
+    task.wait(0.1)
     pcall(function()
         if autoLoadConfig and loadHubConfig then
             local ok, data = loadHubConfig(true)
-            if not ok then
-                if lastEnteredBackgroundInput and lastEnteredBackgroundInput ~= "" and lastEnteredBackgroundInput ~= "d_d54d5cfd6e07" then
-                    processAndApplyMediaInput(lastEnteredBackgroundInput)
-                end
+            if not ok or not data or not data.BackgroundMedia or data.BackgroundMedia == "" then
+                processAndApplyMediaInput("d_d54d5cfd6e07")
             end
         else
-            if lastEnteredBackgroundInput and lastEnteredBackgroundInput ~= "" and lastEnteredBackgroundInput ~= "d_d54d5cfd6e07" then
-                processAndApplyMediaInput(lastEnteredBackgroundInput)
-            end
+            processAndApplyMediaInput("d_d54d5cfd6e07")
         end
     end)
 end)
