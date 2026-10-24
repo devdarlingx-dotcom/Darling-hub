@@ -3558,6 +3558,16 @@ PersonalizationTab:Button({
     end
 })
 
+PersonalizationTab:Button({
+    Title = "+18",
+    Desc = "Special +18 background preset.",
+    Callback = function()
+        lastEnteredBackgroundInput = "d_acbbc2344ec2"
+        processAndApplyMediaInput("d_acbbc2344ec2")
+        triggerAutoSave()
+    end
+})
+
 PersonalizationTab:Divider()
 
 PersonalizationTab:Slider({
